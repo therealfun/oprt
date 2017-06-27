@@ -102,7 +102,7 @@ build_and_install() {
 }
 
 save_build_log_line() {
-	_BUILD_LOG_LINE=$(wc -l "$_BUILD_LOG")
+	_BUILD_LOG_LINE=$(wc -l "$_BUILD_LOG" | awk '{print $1}')
 }
 
 ignore_build_error() {
@@ -199,16 +199,15 @@ handle_override_errors() {
 
 is_build_error() {
 	local n=$(
-		sed -n -e "$_BUILD_LOG_LINE,\${/^=======> ERROR: $1/ p
-			q}" \
-		| wc -l)
+		sed < "$_BUILD_LOG" -n -e "$_BUILD_LOG_LINE,\${/^=======> ERROR: $1/ p}" \
+		| wc -l | awk '{print $1}')
 	(( $n > 0 ))
 }
 
 extract_build_error() {
 	local mark=$'^=======> ERROR:.*$'
 	
-	sed -n "$_BUILD_LOG_LINE,\${/$mark/,/$mark/{/$mark/!{/$mark/!p}}}" "$_BUILD_LOG"
+	sed -n -e "$_BUILD_LOG_LINE,\${/$mark/,/$mark/{/$mark/!{/$mark/!p}}}" < "$_BUILD_LOG"
 }
 
 is_override_error() {

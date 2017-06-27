@@ -1,0 +1,29 @@
+=pod
+
+=head1 NAME
+
+oprt-fsearch - better alternative to C<grep expr /usr/ports/*/.footprint>
+
+=head1 SYNOPSIS
+
+oprt-fsearch expr
+
+=head1 DESCRIPTION
+
+B<oprt-fsearch> searches for expression I<expr> in the I<.footprint> files of all ports.
+
+Why is this tool more useful than the fancy C<grep> or C<prt-get fsearch>?
+
+=over 4
+
+=item more info
+
+It will show the installed version (if the port is installed), all the collections containing this port, with all the other useful informations: version, dependencies, files (see oprt-info(1)).
+
+=back
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

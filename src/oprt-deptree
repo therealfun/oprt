@@ -1,0 +1,170 @@
+#!/bin/bash
+
+libdir=${BASH_SOURCE%/*}
+. $libdir/oprt_lib
+
+main() {
+	# global caching hashes, using the port name as the key
+	declare -A _DEPENDS
+	declare -A _INSTALLED
+	declare -A _DIRS
+
+	local _PORT
+
+	case $# in
+		0) init_from_cwd        ;;
+		1) init_from_arg1  "$1" ;;
+		*) init_from_group "$@" ;;
+	esac
+
+	# a little speed-up
+	export OPRT_COLLECTION_ONE=1
+
+	_LINEAGE=( "$_PORT" )
+
+	if [[ ${OPRT_DEPTREE_RAW+defined} ]]; then
+		show_recursive "$_PORT" 
+	else
+		cache_installed
+		show_recursive_compressed "$_PORT"
+	fi
+}
+
+init_from_cwd() {
+	_PORT=${PWD##*/}
+	_DIRS["$_PORT"]=$PWD
+}
+
+init_from_arg1() {
+	_PORT=${1##*/}
+	lib_set_PORT_DIR_and_COLLECTIONS "$1"
+	_DIRS["$_PORT"]=$_PORT_DIR
+}
+
+init_from_group() {
+	_PORT="GROUP"
+	_INSTALLED["GROUP"]=""
+	_DIRS["GROUP"]=$_PORT
+
+	local DEP
+	for DEP; do
+		_DEPENDS["$_PORT"]+=" $DEP"
+		lib_set_PORT_DIR_and_COLLECTIONS "$DEP"
+		_DIRS["$DEP"]=$_PORT_DIR
+	done
+}
+
+show_recursive() {
+	local _PORT=$1
+	local _LEVEL=$(( ${#_LINEAGE[@]} - 1 ))
+
+	local _PORT_DIR
+	get_port_info "$_PORT"
+
+	printf '%*s%s\n' $(( $_LEVEL * 2 )) "" "$_PORT_DIR"
+
+	local _DEP
+	for _DEP in ${_DEPENDS["$_PORT"]}; do
+		add_to_lineage      "$_DEP"
+		show_recursive      "$_DEP"
+		remove_from_lineage
+	done
+}
+
+get_port_info() {
+	local _PORT=$1
+
+	if [[ ${_DIRS["$_PORT"]+defined} ]]; then
+		_PORT_DIR=${_DIRS["$_PORT"]}
+	else
+		lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+		_DIRS["$_PORT"]=$_PORT_DIR
+	fi
+
+	[[ ${_DEPENDS["$_PORT"]+defined} ]] \
+		|| _DEPENDS["$_PORT"]="$($libdir/oprt-pkgfile-deps "$_PORT_DIR")"
+}
+
+add_to_lineage() {
+	local _PORT=$1
+
+	check_lineage "$_PORT"
+
+	_LINEAGE+=( "$_PORT" )
+}
+
+check_lineage() {
+	local _PORT=$1
+
+	local re=" $_PORT "
+	[[ " ${_LINEAGE[*]} " =~ $re ]] || return
+
+	local _LINK="${_LINEAGE[*]} $_PORT"
+
+	lib_fatal_errorf 'Cyclic dependencies: %s' "${_LINK// / -> }"
+}
+
+remove_from_lineage() {
+	unset -v _LINEAGE[-1]
+}
+
+cache_installed() {
+	local _PORT _VER
+	while read -r _PORT _VER; do
+		_INSTALLED["$_PORT"]=$_VER
+	done < <(
+		pkginfo --installed
+	)
+}
+
+show_recursive_compressed() {
+	local _PORT=$1
+	local _LEVEL=$(( ${#_LINEAGE[@]} - 1 ))
+
+	local _NEW=1
+	[[ ${_DEPENDS["$_PORT"]+defined} && $_PORT != GROUP ]] && _NEW=0
+
+	local _PORT_DIR
+	get_port_info "$_PORT"
+
+	local _PREFIX _SUFFIX
+	setup_prefix_and_suffix "$_PORT" "$_NEW" "$_PORT_DIR"
+
+	printf '%s %*s%s%s\n' "$_PREFIX" $(( $_LEVEL * 2 )) "" "$_PORT" "$_SUFFIX"
+
+	local _DEP
+	for _DEP in ${_DEPENDS["$_PORT"]}; do
+		check_lineage "$_DEP"
+
+		(( $_NEW )) && {
+			add_to_lineage            "$_DEP"
+			show_recursive_compressed "$_DEP"
+			remove_from_lineage
+		}
+	done
+}
+
+setup_prefix_and_suffix() {
+	local _PORT=$1
+	local _NEW=$2
+	local _PORT_DIR=$3
+
+	_PREFIX=" "
+	_SUFFIX=""
+
+	if [[ $_NEW == 1 && $_PORT != GROUP ]]; then
+		local i_version="${_INSTALLED["$_PORT"]}"
+		local n_version="$(lib_pkgfile_version "$_PORT_DIR")"
+		if [[ $i_version == "" ]]; then
+			_PREFIX="?"
+			_SUFFIX=" ($n_version)"
+		elif [[ $n_version != $i_version ]]; then
+			_PREFIX="u"
+			_SUFFIX=" ($i_version -> $n_version)"
+		fi
+	elif [[ $_NEW == 0 ]]; then
+		_SUFFIX=" (again)"
+	fi
+}
+
+main "$@"

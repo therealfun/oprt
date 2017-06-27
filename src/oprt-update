@@ -1,0 +1,187 @@
+#!/bin/bash
+
+libdir=${BASH_SOURCE%/*}
+. $libdir/oprt_lib
+
+declare -A args
+declare -A exclude
+to_update=()
+
+main() {
+	parse_args "$@"
+
+	(( ${#args[@]} > 0 )) \
+		|| add_todo_from_oprt_diff
+
+	select_what_to_update
+	update_selected_ports
+	rebuild_broken_ports
+
+	lib_is_shell_interactive && {
+		printf 'Last log entries: %s\n' "$OPRT_DIR/log"
+		tail "$OPRT_DIR/log" | tac
+
+		ask_later_script_questions
+		ask_about_failed_build_logs
+		ask_about_successful_build_logs
+
+		lib_run_rejmerge
+	}
+}
+	
+parse_args() {
+	local _PORT
+	for _PORT; do
+		if [[ $_PORT = -* ]]; then
+			_PORT=${_PORT#-}
+			exclude["${_PORT##*/}"]=1
+		else
+			args["$_PORT"]=1
+		fi
+	done
+}
+
+
+add_todo_from_oprt_diff() {
+	local _PORT _INSTALLED _LATEST
+
+	while read _PORT _INSTALLED _ _LATEST; do
+		[[ $_LATEST == unknown ]] && {
+			lib_warningf 'Port "%s" (%s) cannot be found in any collection.' "$_PORT" "$_INSTALLED"
+			continue
+		}
+		args["$_PORT"]=1
+	done < <( $libdir/oprt-diff )
+}
+
+select_what_to_update() {
+	local _PORT _PORT_DIR
+	for _PORT in "${!args[@]}"; do
+		[[ ${exclude["$_PORT"]+defined} ]] && continue
+
+		lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+		lib_ask_about_install_scripts "$_PORT_DIR"
+		to_update+=( "$_PORT_DIR" )
+	done
+}
+
+update_selected_ports() {
+	local _PORT_DIR _FAILED=()
+
+	for _PORT_DIR in "${to_update[@]}"; do
+		(
+			export OPRT_INSTALL_REASON=update
+			export OPRT_DONT_ASK_SCRIPT=1
+			$libdir/oprt-install "$_PORT_DIR"
+		) || _FAILED+=( "$_PORT_DIR" )
+	done
+
+	(( ${#_FAILED[@]} == 0 )) \
+		|| lib_warningf 'Failed: %s' "${_FAILED[@]}"
+}
+
+rebuild_broken_ports() {
+	lib_return_full_revdep
+	local _BROKEN=( ${return[@]} );
+	(( ${#_BROKEN[@]} > 0 )) || return
+
+	local _PORT
+	for _PORT in "${_BROKEN[@]}"; do
+		lib_warningf 'broken port: %s\n' "$_PORT"
+	done
+
+	local _FAILED=() _STILL=()
+	for _PORT in "${_BROKEN[@]}"; do
+		[[ ${exclude["$_PORT"]+defined} ]] && {
+			_STILL+=( "$_PORT" )
+			continue
+		}
+
+		(
+			export OPRT_INSTALL_REASON=rebuild
+			export OPRT_DONT_ASK_SCRIPT=1
+			$libdir/oprt-reinstall "$_PORT"
+		) || _FAILED+=( "$_PORT" )
+	done
+
+	(( ${#_FAILED[@]} == 0 )) \
+		|| lib_warningf 'Failed: %s' "${_FAILED[@]}"
+	(( ${#_STILL[@]} == 0 )) \
+		|| lib_warningf 'Still broken: %s' "${_STILL[@]}"
+}
+
+ask_later_script_questions() {
+	local _PORT _SCRIPT
+	local _MEMO="$OPRT_DIR/later_script"
+
+	[[ -e $_MEMO ]] || return
+
+	exec 3<"$_MEMO" 4>"$_MEMO.new"
+
+	while read -u 3 -r _PORT _SCRIPT; do
+		lib_return_prev_script_answer "$_PORT" "$_SCRIPT"
+		[[ $return == unknown ]] || continue
+
+		local _PORT_DIR
+		lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+
+		lib_return_ask_script_question "$_PORT_DIR" "$_SCRIPT"
+		case $return in
+			run)
+				lib_save_script_question run "$_PORT" "$_SCRIPT"
+				(
+					export OPRT_DONT_ASK_SCRIPT=1
+					lib_run_port_script "$_PORT_DIR" "$_SCRIPT"
+				)
+				;;
+			ignore)
+				lib_save_script_question ignore "$_PORT" "$_SCRIPT"
+				;;
+			*)
+				printf '%s %s\n' "$_PORT" "$_SCRIPT" >&4
+				;;
+		esac
+	done
+
+	(( $? == 0 ))                         \
+		&& sync                       \
+		&& mv "$_MEMO.new" "$_MEMO"
+}
+
+ask_about_failed_build_logs() {
+	local _FILE
+	for _FILE in $OPRT_DIR/*.build.log.failed; do
+		[[ -e $_FILE ]] || continue
+		PS3="Delete  '$_FILE' ? "
+		select return in delete show keep
+		do
+			case $return in
+				d*) rm  "$_FILE"; break ;;
+				s*) cat "$_FILE"        ;;
+				k*)               break ;;
+			esac
+		done
+	done
+}
+
+ask_about_successful_build_logs() {
+	local _FILES=( $OPRT_DIR/*.build.log )
+
+	[[ ${#_FILES[@]} -gt 0 && -f "${_FILES[0]}" ]] \
+		|| return
+
+	local _NAMES=( "${_FILES[@]##*/}" )
+	local _PORTS=( "${_NAMES[@]%.build.log}" )
+
+	printf 'You have logs from successful builds: %s\n' "${_PORTS[*]}"
+	read -p "Remove all these logs? [Y/n] "
+	[[ $REPLY == "" || $REPLY == [Yy]* ]] && {
+		rm "${_FILES[@]}"
+		return
+	}
+
+	echo "Then, you can confirm for each one"
+	rm --interactive "${_FILES[@]}"
+}
+
+main "$@"

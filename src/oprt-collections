@@ -1,0 +1,146 @@
+#!/bin/bash
+
+. ${BASH_SOURCE%/*}/oprt_lib
+
+USER_COL="$OPRT_DIR/user_collections"
+STATS_COL="$OPRT_DIR/stats_collections"
+collections=()
+
+show_port_collections() {
+	printf '%s\n' "${collections[@]}"
+	(( ${#collections[@]} > 0 ))
+}
+
+is_pathname_present() {
+	[[ -e $1 ]]
+}
+
+is_empty_file() {
+	[[ ! -s $1 ]]
+}
+
+is_full_pathname() {
+	[[ $1 == /* ]]
+}
+
+is_symlink() {
+	[[ -L $1 ]]
+}
+
+maybe_add_collection() {
+	local _COL=$1
+	local _PORT=$2
+
+	local _DIR="$_COL/$_PORT"
+
+	is_pathname_present "$_DIR/Pkgfile" || return
+
+	if is_symlink "$_DIR"; then
+		_DIR="$(readlink -f "$_DIR")"
+		_COL=${_DIR%/*}
+	else
+		_COL=${_COL%/}
+	fi
+
+	local re=" $_COL "
+	[[ " ${collections[@]} " =~ $re   ]] && return
+
+	collections+=( "$_COL" )
+
+	[[ ${OPRT_COLLECTION_ONE+defined} ]] && exit
+}
+
+maybe_add_collections_from_file() {
+	local _FILE=$1
+	local _PORT=$2
+
+	is_pathname_present "$_FILE" || return
+
+	readarray -t <"$_FILE"
+
+	local _COL
+	for _COL in "${MAPFILE[@]}"; do
+		maybe_add_collection "$_COL" "$_PORT"
+	done
+}
+
+is_stats_file_up_to_date() {
+	local not_up_to_date=1
+
+	is_pathname_present "$STATS_COL" || return $not_up_to_date
+	is_empty_file "$STATS_COL"       && return $not_up_to_date
+
+	local now="$(date +%s)"
+	local cache="$(stat --format='%Y' "$STATS_COL")"
+	local age=$(( $now - $cache ))
+	local one_day=$(( 60*60*24 ))
+
+	(( $age < $one_day ))
+}
+
+generate_collections_stats() {
+	declare -A _SINGLE
+	local _NAME
+
+	# count every collection being the only one 
+	# having one of the installed ports
+
+	while read -r _NAME _ ; do
+		local _FOUND=( $PORTS_DIR/*/$_NAME/ )
+
+		[[ ${#_FOUND[@]} == 1           ]] || continue
+		is_pathname_present "${_FOUND[0]}" || continue
+
+		local _COL="${_FOUND[0]%/*/}"
+
+		_SINGLE["$_COL"]+="."
+	done < <(
+		pkginfo --installed
+	)
+
+	# select the collections having more than one unique port installed
+	# sorted by this number
+
+	local _COL
+	for _COL in "${!_SINGLE[@]}"; do
+		local _PORTS=${_SINGLE["$_COL"]}
+		(( ${#_PORTS} > 1 )) && printf '%s %d\n' "$_COL" ${#_PORTS}
+	done                               \
+	| sort --key=2 --numeric --reverse \
+	| awk '{print $1}'                 \
+	>"$STATS_COL.$$"
+
+	sync
+	mv "$STATS_COL.$$" "$STATS_COL"
+}
+
+main() {
+	local _ARG=${1:-$PWD}
+	local _PORT
+
+	if is_full_pathname "$_ARG"; then
+		local _COL=${_ARG%/*}
+		_PORT=${_ARG##*/}
+
+		maybe_add_collection "$_COL" "$_PORT"
+	else
+		_PORT=$_ARG
+	fi
+
+	maybe_add_collection             "$PP_PORTS" "$_PORT"
+	maybe_add_collections_from_file  "$USER_COL" "$_PORT"
+
+	is_stats_file_up_to_date || generate_collections_stats
+
+	maybe_add_collections_from_file "$STATS_COL" "$_PORT"
+
+	local _DIR
+	for _DIR in $PORTS_DIR/*/$_PORT; do
+		local _COL="${_DIR%/*}"
+		maybe_add_collection "$_COL" "$_PORT"
+	done
+	return 0
+}
+
+trap "show_port_collections" EXIT
+main "$@"

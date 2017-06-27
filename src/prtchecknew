@@ -1,0 +1,42 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+my %to_include = map { $_ => 1 } grep !/^-/, @ARGV;
+%to_include = ("/" => 1) unless scalar(keys %to_include);
+
+my @default_exclude = (
+	'/home',      '/lib/modules', '/usr/src', '/usr/ports',
+	'/var/cache', '/var/lock',    '/var/log', '/var/run',
+);
+my @cmd_excl = map { $_ =~ s/^-//; $_ } grep /^-/, @ARGV;
+my @excl =
+    (defined $ENV{PRTCHECKNEW_NO_DEFAULTS} ? () : @default_exclude, @cmd_excl);
+my %to_exclude = map { $_ => 1 } grep { not $to_include{$_} } @excl;
+
+my %installed;
+open my $f, "< /var/lib/pkg/db"
+    or die "Couldn't open package database!\n";
+
+{
+	local $/ = "";    # read files paragraph-wise; see ``perldoc perlvar''
+	while (<$f>) {
+		my ($pkg_name, $pkg_version, @pkg_file) = split /\n/;
+		map { $installed{"/$_"} = 1 } @pkg_file;
+	}
+}
+
+my $exclude_cond = '';
+$exclude_cond =
+    join(' -o ', map({ " \\( -path $_ -prune \\) " } keys %to_exclude), '')
+    if scalar keys %to_exclude;
+my @inc = keys %to_include;
+my $cmd = "find -P @inc -xdev $exclude_cond -not -type d";
+
+open my $pipe, "$cmd|" or die "Couldn't open pipe $cmd: $!";
+while (<$pipe>) {
+	chomp;
+	print "$_\n" if not $installed{$_} and not $to_exclude{$_};
+}
+close($pipe) || die "$!\n";

@@ -1,0 +1,83 @@
+=pod
+
+=head1 NAME
+
+oprt-install - better alternative to C<pkgmk -d -i>
+
+=head1 SYNOPSIS
+
+oprt-install [port...]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used instead).
+
+=head1 DESCRIPTION
+
+Why is this tool more useful than the fancy one or C<prt-get install>?
+
+=over 4
+
+=item automatic use of C<sudo>
+
+There is no point (yet) in running C<pkgadd> without C<sudo> in order to install the package (when the current user is not B<root>).
+
+=item automatic upgrade
+
+If the package is installed, B<pkgadd> will be called with I<--upgrade>.
+
+=item automatic use of C<fakeroot>
+
+Currently, there are still a few ports that can't be packaged correctly if not built with C<fakeroot>. If the user is not B<root>, the B<pkgmk> will be started with C<fakeroot>.
+
+=item grpinstall behavior
+
+When used to install multiple ports at once, if one fails, the installation will stop and the previously installed ports will be removed.
+
+=item automatic recover from some errors
+
+In case of a footprint mismatch, the user is asked about what to do (if the shell is interactive): ignore, ignore+remember or abort.
+
+In case of a checksum error, the user is asked what to do, and the B<pkgmk> will be restarted with the proper arguments to avoid that error.
+
+Same with B<pkgadd>, to force the installation.
+
+=item logging
+
+Package installation is logged to F<$OPRT_DIR/<port>.build.log>. If the installation failed, the log is renamed to I<*.failed>. See oprt-cleanup(1).
+
+=item flexible port selection
+
+The port can be the current directory or any other port directory. This way you can pick the port from the right collection:
+
+	oprt-install /usr/ports/collection/port
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item B<OPRT_INSTALL_REASON> (default: request)
+
+Other common values are I<update>, I<reinstall>, I<rebuild> and I<depend>.
+
+=item B<OPRT_BUILD_WITH_FAKEROOT> (default: unset)
+
+If set, B<fakeroot> will be used with B<pkgmk>, regardless B<$UID>.
+
+This should fix some builds (eg. dbus) when running in a container that fakes the current user to be root (UID=0). However, only B<fakeroot> can handle B<chown>.
+
+=item B<OPRT_INSTALL_WITH_FORCE> (default: unset)
+
+If set, C<pkgadd --force> will be used.
+
+=item B<OPRT_INSTALL_IGNORING_FOOTPRINT> (default: unset)
+
+If set, it will ignore footprint errors. Usefull when testing ports.
+
+=back
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

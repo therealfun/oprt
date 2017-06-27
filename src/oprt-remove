@@ -1,0 +1,35 @@
+#!/bin/bash
+
+. ${BASH_SOURCE%/*}/oprt_lib
+
+_REASON=${OPRT_UNINSTALL_REASON:-request}
+_REASON=${_REASON//^[a-z]/_}
+_REMOVE_CMD=pkgrm
+
+main() {
+	(( $# > 0 )) || set -- "$PWD"
+
+	local _PORT _PORT_DIR _OK=1
+
+	for _PORT; do
+		lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+		remove_port "$_PORT_DIR" || _OK=0
+	done
+	
+	(( $_OK == 1 ))
+}
+
+remove_port() {
+	local _PORT_DIR=$1
+	local _PORT=${_PORT_DIR##*/}
+	local _VER="$(lib_pkgfile_version "$_PORT_DIR")"
+
+	lib_run_sudo_cmd $_REMOVE_CMD "$_PORT" \
+		|| return 1
+
+	lib_add_to_log "REMOVE $_PORT_DIR $_VER $_REASON"
+	printf 'REMOVED: %s\n' "$_PORT_DIR"
+	return 0
+}
+
+main "$@"

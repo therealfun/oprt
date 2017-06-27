@@ -1,0 +1,29 @@
+=pod
+
+=head1 NAME
+
+oprt-info - better alternative to C<cat /usr/ports/*/port/Pkgfile>
+
+=head1 SYNOPSIS
+
+oprt-info [port...]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used instead).
+
+=head1 DESCRIPTION
+
+Why is this tool more useful than the fancy C<cat> or C<prt-get info>?
+
+=over 4
+
+=item more info
+
+It will show the installed version, all the collections containing this port, with all the other useful informations from every collection: version, dependencies (even the I<Nice to have>), the other port files (patches, services, etc.), and will show the content of the README file.
+
+=back
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

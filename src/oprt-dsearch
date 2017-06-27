@@ -1,0 +1,38 @@
+#!/bin/bash
+
+. ${BASH_SOURCE%/*}/oprt_lib
+
+declare -A _FOUND
+
+main() {
+	(( $# == 1 )) || lib_fatal_errorf '%s' "one argument is required"
+
+	find_ports "$1"
+
+	(( ${#_FOUND[@]} > 0 )) \
+		&& lib_show_search_results
+}
+
+find_ports() {
+	local _EXPR="^#\\s+Description:.*$1"
+
+	local _PKGFILE
+	while read -r _PKGFILE; do
+		[[ -e $_PKGFILE ]] || continue
+
+		local _DIR=${_PKGFILE%/*}
+		local _PORT=${_DIR##*/}
+
+		_FOUND["$_PORT"]=1
+	done < <(
+		grep    --extended-regexp         \
+			--regexp="$_EXPR"         \
+			--ignore-case             \
+			--files-with-matches      \
+			-- $PP_PORTS/*/Pkgfile    \
+			   $PORTS_DIR/*/*/Pkgfile \
+	)
+}
+
+main "$@"
+

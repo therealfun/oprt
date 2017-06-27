@@ -1,0 +1,18 @@
+#!/bin/bash
+
+libdir=${BASH_SOURCE%/*}
+. $libdir/oprt_lib
+
+(( $# > 0 )) || set -- "$PWD"
+
+todo=()
+for port; do
+	lib_set_PORT_DIR_and_COLLECTIONS "$port"
+
+	lib_find_pkg "$_PORT_DIR" && rm -- "$pkg"
+
+	todo+=( "$_PORT_DIR" )
+done
+
+export OPRT_INSTALL_REASON=${OPRT_INSTALL_REASON:-reinstall}
+exec $libdir/oprt-install "${todo[@]}"

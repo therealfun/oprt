@@ -1,0 +1,26 @@
+#!/bin/bash
+
+libdir=${BASH_SOURCE%/*}
+. $libdir/oprt_lib
+
+# two spaces == one level
+sort_based_on_level_and_path() {
+	sed 's/  /0 /g'         \
+		| sort          \
+		| sed 's/0 //g'
+}
+
+show_uniques() {
+	awk '{
+		if ( ! seen[$1] ) {
+			print $1
+			seen[$1]=1
+		}
+	}'
+}
+
+OPRT_DEPTREE_RAW=1                           \
+	$libdir/oprt-deptree "$@"            \
+	| sort_based_on_level_and_path       \
+	| show_uniques                       \
+	| grep -v ^GROUP$

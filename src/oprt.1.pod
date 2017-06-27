@@ -1,0 +1,97 @@
+=pod
+
+=head1 NAME
+
+oprt - collection of tools to manage CRUX ports
+
+=head1 SYNOPSIS
+
+oprt tool ...
+
+=head1 DESCRIPTION
+
+The B<oprt> tools are intended to help you save some keystrokes when managing ports, regardless of the number of port collections used.
+
+=head1 TOOLS
+
+=over 4
+
+=item B<cleanup> (see oprt-cleanup(1))
+
+Cleanup.
+
+=item B<collections> (see oprt-collections(1))
+
+Show the collections having a specific port.
+
+=item B<depinst> (see oprt-depinst(8))
+
+Install ports with all their dependencies.
+
+=item B<deporder> (see oprt-deporder(1))
+
+Post-process deptree to show one possible order in which the packages should be built.
+
+=item B<depsearch> (see oprt-depsearch(1))
+
+Search packages which depend on some port.
+
+=item B<deptree> (see oprt-deptree(1))
+
+Show dependencies tree.
+
+=item B<diff> (see oprt-diff(1))
+
+Show outdated ports.
+
+=item B<dsearch> (see oprt-dsearch(1))
+
+Search ports descriptions.
+
+=item B<fsearch> (see oprt-fsearch(1))
+
+Search ports footprints.
+
+=item B<info> (see oprt-info(1))
+
+Show port info.
+
+=item B<info-all> (see oprt-info-all(1))
+
+Like B<info>, but it will show the content of all the files from the port directory.
+
+=item B<install> (see oprt-install(8))
+
+Install ports.
+
+=item B<pkgfile-deps> (see oprt-pkgfile-deps(1))
+
+Shows the direct port dependencies.
+
+=item B<reinstall> (see oprt-reinstall(8))
+
+Rebuild and reinstall ports.
+
+=item B<remove> (see oprt-remove(8))
+
+Remove ports.
+
+=item B<search> (see oprt-search(1))
+
+Search ports by name.
+
+=item B<update> (see oprt-update(8))
+
+Update ports (upgrades/downgrades).
+
+=item B<watch> (see oprt-watch(1))
+
+Watch for source updates.
+
+=back
+
+=head1 SEE ALSO
+
+ports(8), pkgmk(8), pkgadd(8), pkgrm(8), pkginfo(8), ports(8)
+
+=cut

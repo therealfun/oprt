@@ -1,0 +1,59 @@
+=pod
+
+=head1 NAME
+
+upkgmk - micro pkgmk, the easiest way to build a port
+
+=head1 SYNOPSIS
+
+upkgmk [-c]
+
+=head1 DESCRIPTION
+
+B<upkgmk> builds the port from the current directory, almost like B<pkgmk>.
+
+It downloads the remote sources to the current directory, unpack or copy the sources to F<./src>, run I<build()>, strip objects, compress man files, generate F<.footprint>, F<.signature> or F<.md5sum>, and all in B<70 non-empty lines of shell script>.
+
+It supports I<local_source_prefix>, just to have nice checksum files.
+
+It tries to use B<PKGMK_PACKAGE_DIR> and B<PKGMK_SOURCE_DIR> from F</etc/pkgmk.conf> if it has write access to them, and make symlinks in the current directory.
+
+It is B<the easiest way to build a port>. You can run it as any user, you have the build directory at your fingerprints in case you want to check why build failed, the I<.footprint>, I<.signature> or I<.md5sum> are mostly the same with those from B<pkgmk>. 
+
+=head1 OPTIONS
+
+=over 4
+
+=item I<-c> clean the temporary files
+
+Using this options will remove F<src/>, F<pkg/>, the package and all the remote source files from the current directory.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item B<src_dir>
+
+Override B<PKGMK_SOURCE_DIR>.
+
+=item B<pkg_dir>
+
+Override B<PKGMK_PACKAGE_DIR>.
+
+=back
+
+=head1 CAVEATS
+
+Doesn't work with ports overwriting functions from B<pkgmk>, nor with ports changing the files ownership (dcron, dbus, ...).
+
+=head1 SEE ALSO
+
+pkgmk(8)
+
+=head1 COPYRIGHT AND LICENSE
+
+This program contains lines from pkgmk.
+
+=cut

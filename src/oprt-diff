@@ -1,0 +1,41 @@
+#!/bin/bash
+
+libdir=${BASH_SOURCE%/*}
+. $libdir/oprt_lib
+
+(( $# == 0 )) \
+	|| lib_warningf '%s' "ignoring the arguments"
+
+# little speed-up
+export OPRT_COLLECTION_ONE=1
+
+_DIFFER=0
+
+while read -r _PORT _INSTALLED; do
+	_COL=( $($libdir/oprt-collections "$_PORT") )
+	_PORT_DIR="${_COL[0]}/$_PORT"
+
+	if (( ${#_COL[@]} == 0 )); then
+		_LATEST=unknown
+	else
+		_LATEST="$(lib_pkgfile_version "$_PORT_DIR")"
+	fi
+
+	[[ $_INSTALLED == $_LATEST ]] || {
+		_EXTRA=
+		[[ $_LATEST != unknown ]] && {
+			if   lib_find_up_to_date_pkg "$_PORT_DIR"; then
+				_EXTRA=" (ready)"
+			elif lib_find_pkg            "$_PORT_DIR"; then
+				_EXTRA=" (old)"
+			fi
+		}
+		printf '%-30s %-16s -> %-16s %s%s\n' "$_PORT" "$_INSTALLED" "$_LATEST" "${_COL[0]##*/}" "$_EXTRA"
+		_DIFFER=$(( $_DIFFER + 1 ))
+	}
+done < <(
+	pkginfo --installed
+)
+
+# Do we or do we not have differences?
+(( $_DIFFER == 0 ))

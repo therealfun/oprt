@@ -1,0 +1,20 @@
+#!/bin/bash
+
+maybe_exec_tool() {
+	(( $#  > 0 )) || return
+	
+	bin="$BASH_SOURCE-$1"
+
+	[[ -x "$bin" ]] && exec $bin "${@:2}"
+}
+
+show_help() {
+	for bin in ${BASH_SOURCE}-*; do
+		name=${bin##*/}
+		whatis "$name"
+	done
+}
+
+maybe_exec_tool "$@"
+show_help
+(( $# == 0 )) || [[ $1 == help ]]

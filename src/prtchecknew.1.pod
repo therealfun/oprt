@@ -1,0 +1,58 @@
+=pod
+
+=head1 NAME
+
+prtchecknew - print local/new files (not installed)
+
+=head1 SYNOPSIS
+
+prtchecknew [dir | -excludedir ...]
+
+=head1 DESCRIPTION
+
+B<prtchecknew> prints local/new files (not found in /var/lib/pkg/db). By default, it will search starting from F</>, excluding all mounts and some other (see below).
+
+=head1 EXAMPLE
+
+Print local files, but exclude /home, /var and the defaults.
+
+	prtchecknew -/home -/var
+
+Print all
+
+	PRTCHECKNEW_NO_DEFAULTS=1 prtchecknew
+
+Print the new files from F</etc>:
+
+	prtchecknew /etc
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item B<PRTCHECKNEW_NO_DEFAULTS>
+
+The following pathnames are ignored by default:
+
+	/home
+	/lib/modules
+	/usr/ports
+	/usr/src
+	/var/cache
+	/var/lock
+	/var/log
+	/var/run
+
+If B<PRTCHECKNEW_NO_DEFAULTS> is defined, no defaults will be used to exclude pathnames. The mounted directories will still be ignored.
+
+=back
+
+=head1 SEE ALSO
+
+pkgadd(8), pkginfo(8), prtcheckmissing(1), prtcheckedits(1)
+
+=head1 LICENSE
+
+Public domain
+
+=cut

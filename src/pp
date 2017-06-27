@@ -1,0 +1,562 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+[[ ${PP_PREFS+defined} && -d $PP_PREFS ]] || PP_PREFS=$HOME/.config/pp
+[[ ${PP_PORTS+defined} && -d $PP_PORTS ]] || PP_PORTS=$HOME/.cache/pp
+# Somehow the public key needs to be in /etc/ports
+[[ ${PP_PUBKEY+defined} && -f $PP_PUBKEY ]] || PP_PUBKEY=/etc/ports/pp.pub
+[[ ${PP_SECKEY+defined} && -f $PP_SECKEY ]] || PP_SECKEY=$HOME/.ssh/pp.sec
+[[ ${PRT_CONF+defined} && -f $PRT_CONF   ]] || PRT_CONF=/etc/prt-get.conf
+
+get_pkgfile_var_not_expanded() {
+	local pkgfile="$1/$2/Pkgfile"
+	local name=$3
+	bash -x $pkgfile 2>&1          \
+		| egrep "^\+ ${name}=" \
+		| tail --lines=1       \
+		| awk --field-separator="${name}=" '{print $2}'
+}
+
+get_pkgfile_version() {
+	get_pkgfile_var_not_expanded "$@" version
+}
+
+get_pkgfile_source() {
+	get_pkgfile_var_not_expanded "$@" source
+}
+
+get_pkgfile_header() {
+	local pkgfile="$1/$2/Pkgfile"
+	local tag=$3
+	sed --quiet '0,/^ *$/p' "$pkgfile"           \
+		| egrep --ignore-case "^\s*#\s*$tag" \
+		| sed 's/^.*:\s*//'                  \
+		| sed 's/,/ /g'
+}
+
+get_pkgfile_build() {
+	local pkgfile="$1/$2/Pkgfile"
+	bash -c "(set -e; . $pkgfile; declare -f build)" \
+		|| { echo "ERROR: processing $pkgfile"; exit 1; }
+}
+
+get_port_collections() {
+	local col
+	for col in "${collections[@]}"; do
+		[[ -f "$col/$p/Pkgfile" ]] || continue
+		o+=("$col")
+	done
+}
+
+confirm() {
+	read -p "> $@ [Y/n] "
+	if [[ $REPLY == "" ]]; then
+		return 0
+	fi
+	case $REPLY in
+		y*|Y*) return 0;;
+		    *) return 1;;
+	esac
+}
+
+confirm_not() {
+	read -p "> $@ [y/N] "
+	if [[ $REPLY == "" ]]; then
+		return 0
+	fi
+	case $REPLY in
+		n*|N*) return 0;;
+		    *) return 1;;
+	esac
+}
+
+accept_default() {
+	read -p "> $@"
+	[[ $REPLY == "" ]] || return 1
+	return 0
+}
+
+accept_default_list() {
+	REPLY=()
+	read -a REPLY -p "> $@"
+	[[ "${REPLY[*]}" == "" ]] || return 1
+	return 0
+}
+
+keep_setting() {
+	[[ -f "$setting" ]] || return 1
+
+	echo "Your setting: $(cat $setting)"
+	confirm "Keep it?" || {
+		rm "$setting" 
+		return 1
+	}
+	return 0
+}
+
+save_setting() {
+	local dir=${setting%/*}
+	[[ -e "$dir" ]] || mkdir --parents "$dir"
+	echo "$@" > "$setting"
+}
+
+remove_collection_setting_if_missing() {
+	[[ -f "$setting"                     ]] || return 0
+	[[ -f "$(cat "$setting")/$p/Pkgfile" ]] || rm "$setting"
+}
+
+pick_from_one_collection() {
+	local one=$1
+	c=$one
+
+	[[ -f "$setting" ]] || return 0
+
+	local prev="$(cat "$setting")"
+	[[ "$one" != "$prev" ]] || return 0
+
+	confirm_not "Switch from $prev -> $one ?" || return 0
+
+	c=$prev
+}
+
+pick_from_many_collections() {
+	echo "Port options: "
+
+	for ((k=0; k<${#o[@]}; k++)); do
+		local col="${o[$k]}"
+		echo "$k) $col - $(get_pkgfile_version "$col" "$p")"
+	done
+
+	if keep_setting; then
+		c="$(cat "$setting")"
+	elif accept_default "Your choice? (default is 0) "; then
+		c="${o[0]}"
+	else
+		[[ $REPLY > 0 && $REPLY < ${#o[@]} ]] || {
+			echo "ERROR: invalid choice"
+			exit 1
+		}	
+		c="${o[$REPLY]}"
+	fi
+}
+
+switch_from_symlink_to_dir() {
+	local symlink=$1
+	is_symlink "$symlink" || return 0
+	c="$(readlink --canonicalize "$symlink")"
+	c="${c%/*}"
+	rm "$symlink"
+	save_setting "$c"
+}
+
+ask_collection() {
+	local prefs="$PP_PREFS/$p"
+	local setting="$prefs/collection"
+
+	is_dir $prefs || switch_from_symlink_to_dir $prefs
+
+	remove_collection_setting_if_missing
+
+	local o=()
+	get_port_collections
+	case ${#o[@]} in
+		0) echo "ERROR: Can't find collections for port $p"; exit 1 ;;
+		1) pick_from_one_collection   $o ;;
+		*) pick_from_many_collections    ;;
+	esac
+	save_setting "$c"
+}
+
+ask_dependencies() {
+	local setting="$PP_PREFS/$p/dependencies"
+	local deps=($(get_pkgfile_header "$c" "$p" Depends))
+	local opt=($(get_pkgfile_header "$c" "$p" "Nice\s+to\s+have|Optional"))
+	echo "Depends on: ${deps[*]}"
+	[[ "${opt[*]}" == "" ]] || echo "Nice to have: ${opt[*]}"
+	keep_setting \
+		|| accept_default_list "Your list (ENTER for depends on, comma for none): " \
+		|| save_setting "${REPLY[*]}"
+}
+
+ask_version() {
+	local setting="$PP_PREFS/$p/version"
+	local orig="$(get_pkgfile_version "$c" "$p")"
+	echo "Version: $orig"
+	keep_setting \
+		|| accept_default "Your version (ENTER for default): " \
+		|| (
+			save_setting "$REPLY"
+			echo "WARNING: $p is now locked to version $REPLY"
+		)
+}
+
+ask_sources() {
+	local setting="$PP_PREFS/$p/sources"
+	local orig="$(get_pkgfile_source "$c" "$p")"
+	echo "Sources: $orig"
+	keep_setting \
+		|| accept_default "Your choice (ENTER for default) " \
+		|| save_setting "$REPLY"
+}
+
+ask_build() {
+	local setting="$PP_PREFS/$p/build"
+	echo "The original package build:"
+	echo "--- BEGIN"
+	get_pkgfile_build "$c" "$p"
+	echo "--- END"
+	if [[ -f "$setting" ]]; then
+		echo "Your build:"
+		echo "--- BEGIN"
+		cat "$setting"
+		echo "--- END"
+		if confirm "Keep it?"; then
+			return
+		fi
+		rm "$setting"
+	fi
+	confirm "Keep the original?" || (
+		get_pkgfile_build "$c" "$p" > "$setting"
+		$EDITOR "$setting"
+	)
+}
+
+ask_files() {
+	local files="$PP_PREFS/$p/files"
+	if [[ -d "$files" ]]; then
+		echo "Your custom files:"
+		echo "--- BEGIN"
+		ls -1 --almost-all "$files" | sort
+		echo "--- END"
+		confirm_not "Delete all?" \
+			|| rm --interactive --recursive "$files"
+	else
+		confirm_not "Add custom files (usually patches/.footprint)?" \
+		|| (
+			mkdir "$files"
+			echo "Copy the files yourself to $files/ and run 'pp update'"
+		)
+	fi
+}
+
+prefs_files() {
+	find "$1" -printf '%P\n'
+}
+
+is_symlink() {
+	[[ -L "$1" ]] || return 1
+	return 0
+}
+
+is_dir() {
+	is_symlink "$1" || return 1
+	[[ -d "$1" ]]   || return 0
+	return 1
+}
+
+just_ask_is_enough() {
+	local prefs=$1
+	is_symlink "$prefs" || {
+		local files="$(prefs_files "$prefs" | sort)"
+		[[ $files == collection ]]                          \
+			|| [[ $files = "collection dependencies" ]] \
+			|| return 1
+	}
+	return 0
+}
+
+# "Local can only be used within a function; it makes the variable name
+# have a visible scope restricted to that function and its children."
+ask() {
+	local all=$1
+	shift
+	local p=
+	local c=
+	for p; do
+		echo "=== $p ==="
+		ask_collection
+		ask_dependencies
+		if [[ $all == 0 ]]; then
+			just_ask_is_enough "$PP_PREFS/$p" \
+				|| echo "WARNING: You should run 'pp askall $p'"
+		else
+			ask_version
+			ask_sources
+			ask_build
+			ask_files
+		fi
+	done
+}
+
+# "Local can only be used within a function; it makes the variable name
+# have a visible scope restricted to that function and its children."
+update_all_ports() {
+	local p
+	local dirs=()
+
+	get_dirs $PP_PREFS
+	for p in "${dirs[@]}"; do
+		update_port "$PP_PREFS/$p" "$PP_PORTS/$p"
+	done
+
+	# remove the old ports
+	get_dirs $PP_PORTS
+	for p in "${dirs[@]}"; do
+		local prefs="$PP_PREFS/$p"
+		local port="$PP_PORTS/$p"
+		
+		if [[ -e $prefs ]]; then
+			is_symlink "$prefs"    \
+				|| have_prefs  \
+				|| rm --recursive --interactive "$prefs"
+		fi
+
+		[[ -e $prefs ]] || {
+			if is_symlink "$port"; then
+				rm "$port"
+			else
+				rm --recursive --interactive "$port"
+			fi
+		}
+	done
+}
+
+get_dirs() {
+	local d
+	dirs=()
+	for d in $1/*/; do
+		[[ -e "$d" ]] || continue
+		d=${d%/}
+		d=${d##*/}
+		dirs+=("$d")
+	done
+}
+
+have_prefs() {
+	[[ -d $prefs ]] || return 1
+	local files=( $(prefs_files "$prefs") )
+	[[ ${#files[@]} > 0 ]] || return 1
+}
+
+update_port() {
+	local prefs=$1
+	local port=$2
+	local c
+	preferred_collection
+
+	local orig_port="$c/$p"
+
+	[ -d $orig_port ] || {
+		echo "Port $p is missing. Remove $prefs." 2>&1
+		return
+	}
+
+	echo "$orig_port => $port"
+
+	if [ "$(prefs_files $prefs)" = "collection" ]; then
+		rm --recursive $prefs
+		ln --symbolic $orig_port $prefs
+	fi
+
+	if is_symlink $prefs; then
+		if [ -e $port ]; then
+			rm --recursive $port
+		fi
+		ln --symbolic $orig_port $port
+		return
+	fi
+
+	if is_symlink $port; then
+		rm $port
+	fi
+
+	check_original_port
+
+	[ -d $port ] || mkdir --parent $port
+
+	rsync --recursive --checksum --delete --quiet $orig_port/ $port/
+
+	if [ -f $prefs/dependencies ]; then
+		local r=$(cat $prefs/dependencies)
+		sed "s/^\\(\\s*#\\s*Depends on:\\).*\$/\\1 $r/i" \
+			--in-place $port/Pkgfile 
+	fi
+
+	if [ -f $prefs/version ]; then
+		(
+			echo ""
+			echo "version=$(cat $prefs/version)"
+		)>> $port/Pkgfile 
+	fi
+
+	if [ -f $prefs/sources ]; then
+		(
+			echo ""
+			echo "source=$(cat $prefs/sources)"
+		)>> $port/Pkgfile 
+	fi
+
+	if [ -f $prefs/build ]; then
+		(
+			echo ""
+			cat $prefs/build
+		)>> $port/Pkgfile 
+	fi
+
+	if [ -d $prefs/files ]; then
+		ls -1 --almost-all $prefs/files                              \
+			| xargs --max-args=1 --no-run-if-empty --replace=xxx \
+				cp -v $prefs/files/xxx $port/xxx
+	fi
+
+	if [ -e $orig_port/.md5sum ]; then
+		if [ -f $PP_SECKEY ]; then
+			rm $port/.md5sum
+		else
+			update_md5sum $port
+		fi
+	fi
+
+	if [ -f $PP_SECKEY ]; then
+		update_signature $port
+	elif [ -f $port/.signature ]; then
+		rm $port/.signature
+	fi
+}
+
+preferred_collection() {
+	local setting="$prefs/collection"
+
+	is_dir "$prefs" || {
+		if is_symlink "$prefs"; then
+			c="$(readlink --canonicalize "$prefs")"
+			c="${c%/*}"
+			return
+		fi
+	}
+
+	remove_collection_setting_if_missing
+
+	if [[ -f $setting ]]; then
+		c="$(cat "$setting")"
+	else
+		local o=()
+		get_port_collections
+		c="${o[0]}"
+	fi
+}
+
+get_signature_settings() {
+	(
+		set +o nounset
+		. /etc/pkgmk.conf
+		set -o nounset
+		echo ${PKGMK_IGNORE_SIGNATURE:-no}/${PKGMK_CHECK_SIGNATURE:-no}
+	)
+}
+
+get_md5sum_settings() {
+	(
+		set +o nounset
+		. /etc/pkgmk.conf
+		set -o nounset
+		echo ${PKGMK_IGNORE_MD5SUM:-no}/${PKGMK_CHECK_MD5SUM:-no}
+	)
+}
+
+check_original_port() {
+	case $(get_signature_settings) in
+		*/yes)  # check signature
+			[[ -f "$orig_port/.signature" ]] || (
+				echo "ERROR: Missing $orig_port/.signature"
+				exit 1
+			)
+			check_signature "$orig_port"
+			;;
+		yes/*)  # ignore signature
+			;;
+		*)      # check if exists
+			if [[ -f "$orig_port/.signature" ]]; then
+				check_signature "$orig_port"
+			fi
+	esac
+	case $(get_md5sum_settings) in
+		*/yes)  # check md5sum
+			[[ -f "$orig_port/.md5sum" ]] || (
+				echo "ERROR: Missing $orig_port/.md5sum"
+				exit 1
+			)
+			check_md5sum "$orig_port"
+			;;
+		yes/*)  # ignore md5sum
+			;;
+		*)      # check if exists
+			if [[ -f "$orig_port/.md5sum" ]]; then
+				check_md5sum "$orig_port"
+			fi
+	esac
+}
+
+check_signature() {
+(
+	cd $1
+	pkgmk --check-signature --download
+)
+}
+
+check_md5sum() {
+(
+	cd $1
+	pkgmk --check-md5sum --download
+)
+}
+
+update_md5sum() {
+(
+	cd $1
+	pkgmk --update-md5sum --download
+)
+}
+
+update_signature() {
+(
+	cd $1
+	pkgmk --update-signature --download --secret-key $PP_SECKEY
+	sed "s|\\(verify with\\).*|\\1 $PP_PUBKEY|" --in-place .signature
+)
+}
+
+[[ -d $PP_PREFS ]] || mkdir --parents $PP_PREFS
+[[ -d $PP_PORTS ]] || mkdir --parents $PP_PORTS
+
+collections=($(
+	egrep '^\s*prtdir\s+' $PRT_CONF         \
+		| awk '{print $2}'              \
+		| grep --invert-match $PP_PORTS \
+		| grep --invert-match :
+))
+
+for i in /usr/ports/*; do
+	[[ -e "$i" ]] || continue
+	n=($i/*/Pkgfile)
+	[[ ${#n[@]} > 0 ]] || continue
+	re=" $i "
+	[[ " ${collections[@]} " =~ $re ]] || collections+=("$i")
+done
+
+case ${1:-} in
+	ask)    shift; ask 0 "$@"; update_all_ports ;;
+	askall) shift; ask 1 "$@"; update_all_ports ;;
+	update)                    update_all_ports ;;
+	*) echo "
+Usage: $(basename $0) [ask portname...|askall portname...|update]
+	ask    - ask about collection and dependencies
+	askall - ask about all
+	update - generate ports in $PP_PORTS with settings from $PP_PREFS
+"
+	;;
+esac
+

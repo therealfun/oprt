@@ -1,0 +1,31 @@
+=pod
+
+=head1 NAME
+
+oprt-depsearch - better alternative to C<grep '# Depends.*port' /usr/ports/*/Pkgfile>
+
+=head1 SYNOPSIS
+
+oprt-depsearch [port]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used).
+
+=head1 DESCRIPTION
+
+B<oprt-depsearch> searches for expression I<expr> in the I<Depends on> and I<Nice to have> headers of all ports.
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item B<OPRT_DEPSEARCH_BASIC> (default: not set)
+
+If set, search only I<Depends on>.
+
+=back
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

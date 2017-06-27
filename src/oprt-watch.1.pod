@@ -1,0 +1,53 @@
+=pod
+
+=head1 NAME
+
+oprt-watch - better alternative to C<ck4up>
+
+=head1 SYNOPSIS
+
+oprt-watch [port...]
+
+B<oprt-watch> checks for upstream source updates, by comparing the I<version> from the F<Pkgfile> with the output of the F<.watch> script from the port directory.
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used).
+
+=head1 DESCRIPTION
+
+Why is this tool more useful than C<ck4up>?
+
+=over 4
+
+=item B<stateless>
+
+B<oprt-watch> B<always> shows if the current port needs a source update, as oposed to B<ck4up>, which shows B<only once> if the watched B<webpage has been modified>.
+
+=item B<noiseless>
+
+B<oprt-watch> shows only the source version, while B<ck4up> shows all the archive changes from the watched webpage.
+
+=item B<faster>
+
+B<oprt-watch> checks ports in parallel, and doesn't need to fetch to whole page.
+
+=item B<distributed>
+
+B<oprt-watch> shows the same thing regardless the current machine. Anybody can easily check if the port is up to date, because the I<watching howto> is present within the port.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item B<OPRT_WATCH_PROCESSES> (default: 5)
+
+The number of ports checked in the same time.
+
+=back
+
+=head1 SEE ALSO
+
+ck4up(1)
+
+=cut

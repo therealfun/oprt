@@ -1,0 +1,25 @@
+=pod
+
+=head1 NAME
+
+oprt-pkgfile-deps - better alternative to C<awk FS='Depends on:' '(1 < NF) {print $2}' Pkgfile>
+
+=head1 SYNOPSIS
+
+oprt-pkgfile-deps [port...]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used instead).
+
+=head1 DESCRIPTION
+
+Why is this tool more useful than the fancy one or C<prt-get quickdeps>?
+
+B<oprt-pkgfile-deps> handles C<,> too, as a list separator, like B<prt-get> does, but it doesn't add the port to that list (which is a good thing).
+
+B<oprt-pkgfile-deps> is also more flexible, as it works with full pathnames, letting you choose a port from a specific collection.
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

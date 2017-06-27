@@ -1,0 +1,54 @@
+#!/bin/bash
+
+. ${BASH_SOURCE%/*}/oprt_lib
+
+main() {
+	local _N=${OPRT_WATCH_PROCESSES//[^0-9]/}
+	_N=${_N:-5}
+	
+	local _WATCH
+	while read -r _WATCH; do
+		check "$(readlink -f "$_WATCH")" &
+
+		local _JOBS=( $(jobs -p) )
+		(( ${#_JOBS[@]} < $_N )) \
+			|| wait -n
+	done < <(
+		find -L "${@:-$PWD}" -type f -name .watch
+	)
+
+	wait_background_jobs
+}
+
+check() {
+	local _WATCH=$1
+
+	local _PORT_DIR=${_WATCH%/*}
+
+	[[ -e "$_PORT_DIR/Pkgfile" ]] \
+		|| return 0
+
+	local _UPSTREAM_VERSION="$(sh "$_WATCH")"
+	[[ $_UPSTREAM_VERSION != "" ]] || {
+		lib_warningf 'URL match failed: %s\n' "$_PORT_DIR"
+		return 0
+	}
+
+	local _PORT_VERSION="$(lib_pkgfile_version0 "$_PORT_DIR")"
+	[[ $_PORT_VERSION == $_UPSTREAM_VERSION ]] ||
+		lib_warningf '%s: %s -> %s' "$_PORT_DIR" \
+			"$_PORT_VERSION" "$_UPSTREAM_VERSION"
+
+	return 0
+}
+
+wait_background_jobs() {
+	local _J
+
+	for _J in $(jobs -p); do
+		wait $_J
+	done
+}
+
+main "$@"
+exit 0

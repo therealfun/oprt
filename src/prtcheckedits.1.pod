@@ -1,0 +1,72 @@
+=pod
+
+=head1 NAME
+
+prtcheckedits - print modified files
+
+=head1 SYNOPSIS
+
+prtcheckedits [package ...]
+
+=head1 DESCRIPTION
+
+B<prtcheckedits> prints all the files installed with pkgadd(8), but now are different in size, timestamp, owner, rights or type.
+
+Because the pkg database (/var/lib/pkg/db) keeps only the filenames from every package, the packages must still exist, in order to find the original size/timestamp/owner/rights/type. The package directory is extracted from /etc/pkgmk.conf.
+
+The missing packages are printed to STDERR.
+
+The modified files are printed to STDOUT as:
+
+	pathname package flags
+
+With the flags being:
+
+	o - different owner
+	x - different rights or type
+	s - different size
+	t - different timestamp
+
+=head1 EXAMPLES
+
+Check only the package I<pkgutils>:
+
+	prtcheckedits pkgutils
+
+Check all the packages starting with I<prt> or I<pkg>:
+
+	prtcheckedits 'prt.*' 'pkg.*'
+
+Check all the packages:
+
+	prtcheckedits
+
+=head1 PATHNAMES
+
+The following pathnames are excluded:
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item B<PRTCHECKEDITS_EXCLUDE>
+
+A list space separated regular expressions to be excluded.
+
+The default is C</var/log/wtmp /var/log/btmp /usr/share/mime/.*>.
+
+=back
+
+=head1 SEE ALSO
+
+pkgadd(8), pkginfo(8), pkgmk.conf(5), prtcheckmissing(1), prtchecknew(1)
+
+=head1 LICENSE
+
+Because this program contains code from Stat::lsMode.pm module, you may distribute it like Stat::lsMode.pm, which has the following note:
+
+	You may distribute this module under the same terms as Perl itself.
+
+See https://st.aticpan.org/source/MJD/Stat-lsMode-0.50/lsMode.pm
+
+=cut

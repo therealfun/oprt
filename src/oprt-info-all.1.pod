@@ -1,0 +1,27 @@
+=pod
+
+=head1 NAME
+
+oprt-info-all - better alternative to C<cat /usr/ports/*/port/*>
+
+=head1 SYNOPSIS
+
+oprt-info-all [port...]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used instead).
+
+=head1 DESCRIPTION
+
+Why is this tool more useful than the fancy C<cat>?
+
+It might not be :) But, B<oprt-info-all> will show the installed version, if any, and will use some order in showing the informations when the port is in multiple collections.
+
+Why is this tool more useful than C<prt-get info>?
+
+It will show all the collections containing this port, with all the other useful informations from every collection, including the I<Nice to have> and the content of all the other port files (README, patches, etc.).
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

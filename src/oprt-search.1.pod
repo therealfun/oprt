@@ -1,0 +1,33 @@
+=pod
+
+=head1 NAME
+
+oprt-search - better alternative to C<echo /usr/ports/*/*expr*>
+
+=head1 SYNOPSIS
+
+oprt-search expr
+
+=head1 DESCRIPTION
+
+B<oprt-search> searches I<expr> in ports pathnames.
+
+Why is this tool more useful than the fancy C<echo> or C<prt-get search>?
+
+=over 4
+
+=item more info
+
+It will show the installed version, all the collections containing this port, with all the other useful informations: version, dependencies, files (see oprt-info(1)).
+
+=item fallback to description search
+
+If nothing was found, it will fallback to a description search (see oprt-dsearch(1)).
+
+=back
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

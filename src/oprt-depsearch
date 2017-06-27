@@ -1,0 +1,43 @@
+#!/bin/bash
+
+libdir=${BASH_SOURCE%/*}
+. $libdir/oprt_lib
+
+declare -A _FOUND
+
+main() {
+	(( $# == 1 )) || set -- "$PWD"
+
+	find_ports "${1##*/}"
+
+	(( ${#_FOUND[@]} > 0 )) \
+		&& lib_show_search_results
+}
+
+find_ports() {
+	local _NAME=$1
+	local _EXPR="^#\s*(Depends on|Optional|Nice to have):.*\<$_NAME(\s.*|)$"
+
+	[[ ${OPRT_DEPSEARCH_BASIC+defined} ]] \
+		&& _EXPR="^#\s*Depends on:.*\<$_NAME(\s.*|)$"
+
+	local _PKGFILE _DIR _COL _PORT
+	while read -r _PKGFILE; do
+		[[ -e $_PKGFILE ]] || continue
+
+		_DIR=${_PKGFILE%/*}
+		_PORT=${_DIR##*/}
+
+		_FOUND["$_PORT"]=1
+	done < <(
+		grep    --extended-regexp         \
+			--regexp="$_EXPR"         \
+			--ignore-case             \
+			--files-with-matches      \
+			-- $PP_PORTS/*/Pkgfile    \
+			   $PORTS_DIR/*/*/Pkgfile \
+	)
+}
+
+main "$@"
+

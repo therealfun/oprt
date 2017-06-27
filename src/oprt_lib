@@ -1,0 +1,305 @@
+[[ -d "$PORTS_DIR" ]] || PORTS_DIR=/usr/ports
+[[ -d "$PP_PORTS"  ]] || PP_PORTS=$HOME/.cache/pp
+[[ -d "$OPRT_DIR"  ]] || OPRT_DIR=$HOME/.cache/oprt
+OPRT_REVDEP="${OPRT_REVDEP:- -i libreoffice}"
+OPRT_REVDEP="${OPRT_REVDEP//[^a-zA-Z0-9 -]/}"
+
+[[ -d $OPRT_DIR ]] || mkdir -p "$OPRT_DIR"
+[[ -d $PP_PORTS ]] || mkdir -p "$PP_PORTS"
+
+lib_show_info() {
+	printf '%-13s %s\n' "$1:" "$2"
+}
+
+lib_is_installed() {
+	pkginfo --installed | awk '
+		BEGIN        { rc=1          }
+		($1 == port) { rc=0; exit    }
+		END          {       exit rc }
+	' port="${1##*/}"
+}
+
+lib_return_installed_version() {
+	return=$(pkginfo --installed \
+		| awk '($1 == port) {print $2; exit 0}' port="${1##*/}")
+}
+
+# This is slow.
+# Tried: awk, grep, cache files, return_pkgfile_version() + cache files
+lib_pkgfile_version() {
+	awk '
+		BEGIN             { version="" ; release=1 ;  }
+		($1 == "version") { version=$2 }
+		($1 == "release") { release=$2 }
+		END               { print version "-" release }
+	' FS="=" <"$1/Pkgfile"
+}
+
+lib_pkgfile_version0() {
+	awk '
+		BEGIN             { version="" }
+		($1 == "version") { version=$2 }
+		END               { print version }
+	' FS="=" <"$1/Pkgfile"
+}
+
+lib_pkgfile_header() {
+	awk '   BEGIN                { IGNORECASE=1                        }
+		function ltrim(s)    { sub(/^[ \t\r\n]+/, "", s); return s }
+		function rtrim(s)    { sub(/[ \t\r\n]+$/, "", s); return s }
+		function trim_dup(s) { sub(/[ ]+/, " ", s);       return s }
+		function trim(s)     { return trim_dup(rtrim(ltrim(s)))    }
+		(NF > 1)             { print trim($2) }
+	' FS="$1:" < "$2/Pkgfile"
+}
+
+lib_add_to_log() {
+	[[ ${OPRT_DONT_LOG+defined} ]] \
+		|| printf '%(%F %T)T %s\n' -1 "$*" >> "$OPRT_DIR/log"
+}
+
+lib_is_shell_interactive() {
+	# local login
+	[[ -t 0          ]] && return 0
+	# ssh login
+	[[ -p /dev/stdin ]] && return 0
+
+	return 1
+}
+
+lib_set_PORT_DIR_and_COLLECTIONS() {
+	if [[ -d $1 ]]; then
+		_PORT_DIR=$(readlink -f "$1")
+		_COLLECTIONS=( "${_PORT_DIR%/*}" )
+	else
+		_COLLECTIONS=( $(${BASH_SOURCE%/*}/oprt-collections "$1") )
+		(( ${#_COLLECTIONS[@]} > 0 )) \
+			|| lib_fatal_errorf 'Port "%s" not found' "$1"
+		_PORT_DIR="${_COLLECTIONS[0]}/$1"
+	fi
+}
+
+lib_is_script_answer_present() {
+	local place=$1
+	local port=$2
+	local script=$3
+	local memo="$OPRT_DIR/${place}_script"
+
+	[[ -e "$memo" ]] && grep --regex="^$port ${script}\$" "$memo" > /dev/null
+}
+
+lib_return_prev_script_answer() {
+	local port=$1
+	local script=$2
+
+	lib_is_script_answer_present run    "$port" "$script" && {
+		return=run
+		return
+	}
+
+	lib_is_script_answer_present ignore "$port" "$script" && {
+		return=ignore
+		return
+	}
+
+	return=unknown
+}
+
+lib_save_script_question() {
+	local place=$1
+	local port=$2
+	local script=$3
+
+	local memo="$OPRT_DIR/${place}_script"
+
+	case $place in
+		run|ignore)
+			printf '%s %s\n' "$port" "$script" >> "$memo"
+			;;
+		later)
+			lib_is_script_answer_present later "$port" "$script" \
+				|| printf '%s %s\n' "$port" "$script" >> "$memo"
+			;;
+	esac
+}
+
+lib_return_ask_script_question() {
+	local port_dir=$1
+	local script=$2
+
+	[[ ${OPRT_DONT_ASK_SCRIPT+defined} ]] && { return=later; return; }
+
+	PS3="Run $port_dir/$script (see above) ? "
+	echo "--- begin ---"
+	cat "$port_dir/$script"
+	echo "--- end ---"
+	select return in "run" "ignore" "respond later"
+	do
+		case $return in
+			run|ignore)               break ;;
+			*later)     return=later; break ;;
+		esac
+	done
+}
+
+lib_ask_about_install_scripts() {
+	local port_dir=$1
+	local port=${port_dir##*/}
+
+	local script
+	for script in {pre,post}-install; do
+		[[ -f "$port_dir/$script" ]] || continue
+
+		lib_return_prev_script_answer "$port" $script
+		[[ $return == unknown ]] || continue
+
+		if lib_is_shell_interactive; then
+			lib_return_ask_script_question "$port_dir" $script
+		else
+			return=later
+		fi
+
+		lib_save_script_question $return "$port" $script
+	done
+}
+
+lib_rollback_installs() {
+	export OPRT_UNINSTALL_REASON=rollback
+	local port_dir
+	for port_dir; do
+		${BASH_SOURCE%/*}/oprt-remove "$port_dir"
+	done
+}
+
+lib_ack_to_run_port_script() { 
+	local port_dir=$1
+	local script=$2
+
+	local port=${port_dir##*/}
+	local true=0
+	local false=1
+
+	[[ -f "$port_dir/$script" ]] || return $false
+
+	lib_return_prev_script_answer "$port" "$script"
+	case $return in
+		run)    return $true  ;;
+		ignore) return $false ;;
+	esac
+
+	lib_is_shell_interactive || {
+		lib_save_script_question later "$port" "$script"
+		return $false
+	}
+
+	lib_return_ask_script_question          "$port_dir" "$script"
+	lib_save_script_question        $return "$port"     "$script"
+
+	[[ $return == run ]]
+}
+
+lib_run_port_script() {
+	local port_dir=$1
+	local script=$2
+
+	lib_ack_to_run_port_script "$@" || return 0
+
+	lib_run_sudo_cmd sh -x "$port_dir/$script"
+
+	local rc=$?
+
+	lib_add_to_log "RUN $port_dir/$script $rc"
+
+	(( $rc == 0 )) \
+		|| lib_warningf 'Failed: %s' "$port_dir/$script"
+
+	return $rc
+}
+
+lib_find_pkg() {
+	local match="^=======> Package '(.*)' is (up|not up) to date\.\$"
+	[[ "$(cd "$1" && pkgmk --up-to-date)" =~ $match ]] || return 1
+
+	pkg="${BASH_REMATCH[1]}"
+	[[ $pkg != "" && -e $pkg ]]
+}
+
+lib_find_up_to_date_pkg() {
+	lib_find_pkg "$1" && [[ ${BASH_REMATCH[2]} == up ]]
+}
+
+lib_show_search_results() {
+	local _PORT _VERSION _C _COL
+	local _LIB_DIR=${BASH_SOURCE%/*}
+
+	for _PORT in "${!_FOUND[@]}"; do
+		_COL=( $($_LIB_DIR/oprt-collections "$_PORT") )
+
+		lib_return_installed_version "$_PORT"
+		_VERSION=$return
+
+		lib_show_info 'Name'      "$_PORT"
+		lib_show_info 'Installed' "${_VERSION:-no}"
+
+		for _C in "${_COL[@]}"; do
+			OPRT_SEARCHING=1 $_LIB_DIR/oprt-info "$_C/$_PORT"
+		done
+
+		echo ""
+	done
+}
+
+lib_run_cmd() {
+	printf '%s\n' "$*"
+	[[ $1 == sudo ]] && lib_wait_for_human_to_enter_password
+	"$@"
+}
+
+lib_run_sudo_cmd() {
+	if (( $UID == 0 )); then
+		lib_run_cmd "$@"
+	else
+		lib_run_cmd sudo "$@"
+	fi
+}
+
+lib_wait_for_human_to_enter_password() {
+	(( $UID == 0 )) \
+		&& return
+
+	while ! sudo true
+	do
+		sleep 1
+	done
+}
+
+lib_fatal_errorf() {
+	local _FMT=$1
+	shift
+	printf "ERROR: $_FMT\n" "$@" >&2
+	exit 1
+}
+
+lib_warningf() {
+	local _FMT=$1
+	shift
+	printf "WARNING: $_FMT\n" "$@" >&2
+}
+
+lib_return_full_revdep() {
+	return=()
+
+	[[ -x "$(which revdep)" ]] || return
+
+	printf 'revdep %s\n' "$OPRT_REVDEP"
+
+	readarray -t return < <( revdep $OPRT_REVDEP )
+}
+
+lib_run_rejmerge() {
+	[[ ${OPRT_SKIP_REJMERGE+defined} ]] && return
+	local _REJECTED=( /var/lib/pkg/rejected/* )
+	[[ -e ${_REJECTED[0]} ]]             \
+		&& lib_run_sudo_cmd rejmerge
+}
+

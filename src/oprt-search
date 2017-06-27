@@ -1,0 +1,36 @@
+#!/bin/bash
+
+libdir=${BASH_SOURCE%/*}
+. $libdir/oprt_lib
+
+declare -A _FOUND
+
+main() {
+	(( $# == 1 )) || lib_fatal_errorf '%s' "one argument is required"
+
+	find_ports "$1"
+
+	if (( ${#_FOUND[@]} > 0 )); then
+		lib_show_search_results
+	else
+		echo "NOTHING FOUND: search descriptions"
+		exec $libdir/oprt-dsearch "$1"
+	fi
+}
+
+find_ports() {
+	local _EXPR=$1
+	shopt -s nocaseglob
+	local _PKGFILE
+	for _PKGFILE in $PP_PORTS/*$_EXPR*/Pkgfile $PORTS_DIR/*/*$_EXPR*/Pkgfile; do
+		[[ -e $_PKGFILE ]] || continue
+
+		local _DIR=${_PKGFILE%/*}
+		local _PORT=${_DIR##*/}
+
+		_FOUND["$_PORT"]=1
+	done
+	shopt -u nocaseglob
+}
+
+main "$@"

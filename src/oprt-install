@@ -1,0 +1,230 @@
+#!/bin/bash
+
+. ${BASH_SOURCE%/*}/oprt_lib
+
+_REASON=${OPRT_INSTALL_REASON:-request}
+_REASON=${_REASON//^[a-z]/_}
+
+main() {
+	local _BUILD_CMD="nice -n 19 ionice --class idle pkgmk --download"
+	local _INSTALL_CMD=pkgadd
+	local _RC=0
+
+	# UID might be faked, but only fakeroot can handle chown (see dbus port)
+	[[ ${OPRT_BUILD_WITH_FAKEROOT+defined} || $UID -ne 0 ]] \
+		&& _BUILD_CMD="fakeroot $_BUILD_CMD"
+
+	(( $# > 0 )) || set -- "$PWD"
+
+	local _PORT _PORT_DIR _UPGRADED _INSTALLED=()
+	for _PORT; do
+		lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+
+		_UPGRADED=0
+		lib_is_installed "$_PORT" && _UPGRADED=1
+
+		build_and_install_with_log || {
+			lib_rollback_installs "${_INSTALLED[@]}"
+			_RC=1
+			break
+		}
+
+		(( $_UPGRADED == 1 )) || _INSTALLED+=( "$_PORT_DIR" )
+
+		printf 'INSTALLED: %s\n' "$_PORT_DIR"
+	done
+
+	return $_RC
+}
+
+build_and_install_with_log() {
+	local _VERSION="$(lib_pkgfile_version "$_PORT_DIR")"
+	local _BUILD_LOG="$OPRT_DIR/${_PORT_DIR##*/}.build.log"
+	local _INSTALL_OPT=
+	local _BUILD_OPT=
+
+	[[ -e "${_BUILD_LOG}.failed" ]]       \
+		&& rm "${_BUILD_LOG}.failed"
+
+	(( $_UPGRADED == 1 ))                 \
+		&& _INSTALL_OPT+=" --upgrade"
+
+	[[ ${OPRT_INSTALL_WITH_FORCE+defined} ]] \
+		&& _INSTALL_OPT+=" --force"
+
+	_BUILD_LOG_LINE=1
+	build_and_install 3> >(tee "$_BUILD_LOG")
+
+	local _RC=$?
+
+	(( $_RC == 0 )) || {
+		tail "$_BUILD_LOG"
+		mv "$_BUILD_LOG" "${_BUILD_LOG}.failed"
+	}
+
+	return $_RC
+}
+
+build_and_install() {
+	local _FAILED=1
+
+	cd "$_PORT_DIR" >&3 2>&1  \
+		|| return $_FAILED
+
+	lib_run_port_script "$_PORT_DIR" pre-install \
+		|| return $_FAILED
+
+	printf '%(%F %T)T Building "%s" - %s\n' -1 "$_PORT_DIR" "$_BUILD_LOG"
+	while ! lib_run_cmd $_BUILD_CMD $_BUILD_OPT >&3 2>&1; do
+		ignore_build_error \
+			&& break
+		fix_build_error    \
+			|| return $_FAILED
+		save_build_log_line
+	done
+	save_build_log_line
+
+	lib_find_pkg "$_PORT_DIR" >&3 2>&1 \
+		|| return $_FAILED
+
+	printf '%(%F %T)T Installing "%s"\n' -1 "$pkg"
+
+	lib_wait_for_human_to_enter_password
+	while ! lib_run_sudo_cmd $_INSTALL_CMD $_INSTALL_OPT "$pkg" >&3 2>&1; do
+		fix_install_error \
+			|| return $_FAILED
+		save_build_log_line
+	done
+
+	lib_add_to_log "INSTALL $_PORT_DIR $_VERSION $_REASON"
+
+	lib_run_port_script "$_PORT_DIR" post-install
+}
+
+save_build_log_line() {
+	_BUILD_LOG_LINE=$(wc -l "$_BUILD_LOG")
+}
+
+ignore_build_error() {
+	handle_footprint_mismatch
+}
+
+fix_build_error() {
+	handle_md5sum_mismatch               \
+		|| handle_signature_mismatch
+}
+
+fix_install_error() {
+	handle_override_errors
+}
+
+handle_footprint_mismatch() {
+	is_build_error "Footprint" \
+		|| return 1
+
+	[[ ${OPRT_INSTALL_IGNORING_FOOTPRINT+defined} ]] \
+		&& return 0
+
+	have_footprint_exception || {
+		lib_is_shell_interactive || return 1
+
+		PS3="Ignore the footprint error for '$_PORT_DIR' ? "
+		select return in "ignore just now" "ignore forever" "abort"
+		do
+			case $return in
+				*now)     break ;;
+				*forever) add_footprint_exception; break ;;
+				abort)    return 1 ;;
+			esac
+		done
+	}
+
+	return 0
+}
+
+have_footprint_exception() {
+	local not_found=1 found=0 i
+
+	for i in $OPRT_DIR/footprint.$_PORT.*; do
+		[[ -e $i ]]                                        \
+			&& diff <(extract_build_error) "$i" >/dev/null \
+			&& return $found
+	done
+
+	return $not_found
+}
+
+add_footprint_exception() {
+	extract_build_error >"$OPRT_DIR/footprint.$_PORT.$(date +%s)"
+}
+
+handle_md5sum_mismatch() {
+	lib_is_shell_interactive \
+		|| return 1
+	is_build_error "Md5sum"  \
+		|| return 1
+
+	confirm "Ignore the md5 mismatch? " \
+		|| return 1
+
+	_BUILD_OPT+=" --ignore-md5sum"
+	return 0
+}
+
+handle_signature_mismatch() {
+	lib_is_shell_interactive   \
+		|| return 1
+	is_build_error "Signature" \
+		|| return 1
+
+	confirm "Ignore the signature mismatch? " \
+		|| return 1
+
+	_BUILD_OPT+=" --ignore-signature"
+	return 0
+}
+
+handle_override_errors() {
+	lib_is_shell_interactive \
+		|| return 1
+	is_override_error        \
+		|| return 1
+
+	confirm "Force the instalation and override the files listed above? " \
+		|| return 1
+
+	_INSTALL_OPT+=" --force"
+	return 0
+}
+
+is_build_error() {
+	local n=$(
+		sed -n -e "$_BUILD_LOG_LINE,\${/^=======> ERROR: $1/ p
+			q}" \
+		| wc -l)
+	(( $n > 0 ))
+}
+
+extract_build_error() {
+	local mark=$'^=======> ERROR:.*$'
+	
+	sed -n "$_BUILD_LOG_LINE,\${/$mark/,/$mark/{/$mark/!{/$mark/!p}}}" "$_BUILD_LOG"
+}
+
+is_override_error() {
+	tail -1 "$_BUILD_LOG" \
+		| grep '^pkgadd: listed file(s) already installed' >/dev/null
+}
+
+confirm() {
+	read -p "> $@ [y/N] "
+	if [[ $REPLY == "" ]]; then
+		return 1
+	fi
+	case $REPLY in
+		y*|Y*) return 0;;
+		    *) return 1;;
+	esac
+}
+
+main "$@"

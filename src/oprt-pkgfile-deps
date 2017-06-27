@@ -1,0 +1,8 @@
+#!/bin/bash
+
+. ${BASH_SOURCE%/*}/oprt_lib
+
+lib_set_PORT_DIR_and_COLLECTIONS "${1:-$PWD}"
+
+lib_pkgfile_header "Depends on" "$_PORT_DIR" \
+	| sed -e 's/,/ /g' -e 's/  / /g'

@@ -1,0 +1,97 @@
+#!/bin/bash
+
+libdir=${BASH_SOURCE%/*}
+. $libdir/oprt_lib
+
+main() {
+	(( $# == 0 )) && set -- $PWD
+
+	local _PORT _COLLECTIONS _COL _NAME
+	for _PORT; do
+		lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+		_NAME=${_PORT_DIR##*/}
+
+		maybe_show_name_and_installed_version "$_NAME"
+
+		for _COL in "${_COLLECTIONS[@]}"; do
+			show_port "$_COL/$_NAME"
+		done
+
+		[[ ${OPRT_SEARCHING+defined} ]] || echo ""
+	done
+}
+
+maybe_show_name_and_installed_version() {
+	local _NAME=$1
+
+	[[ ${OPRT_SEARCHING+defined} ]] && return
+	(( ${#_COLLECTIONS[@]}   > 0 )) || return
+
+	lib_show_info Name "$_NAME"
+
+	lib_return_installed_version "$_NAME"
+	[[ $return == "" ]] \
+		|| lib_show_info 'Installed' "$return"
+}
+
+show_port() {
+	local _DIR=$1
+
+	printf 'Port: %s\n' "$_DIR"
+
+	lib_show_info Version     "$(lib_pkgfile_version            "$_DIR")"
+	lib_show_info Description "$(lib_pkgfile_header Description "$_DIR")"
+
+	show_port_depends "$_DIR"
+	show_port_files   "$_DIR"
+}
+
+show_port_depends() {
+	local _DIR=$1
+
+	local _DEPS=( $($libdir/oprt-pkgfile-deps "$_DIR") )
+	(( ${#_DEPS[@]} > 0 )) \
+		&& lib_show_info Depends "${_DEPS[*]}"
+
+	local _OPT=(  $(lib_pkgfile_header 'Nice to have' "$_DIR") )
+	_OPT+=(       $(lib_pkgfile_header 'Optional'     "$_DIR") )
+	(( ${#_OPT[@]} > 0 )) \
+		&& lib_show_info 'Nice to have' "${_OPT[*]}"
+}
+
+show_port_files() {
+	local _DIR=$1
+
+	local _F _FILES=()
+
+	for _F in $_DIR/*; do
+		[[ -e $_F && "${_F##*/}" != Pkgfile ]] \
+			&& _FILES+=( "${_F##*/}" )
+	done
+
+	(( ${#_FILES[@]} > 0 )) \
+		&& lib_show_info Files "${_FILES[*]}"
+
+	[[ -e "$_DIR/README" ]] \
+		&& show_file_content "$_DIR" README
+
+	[[ ${OPRT_INFO_ALL+defined} ]] || return
+
+	local _F
+	for _F in "${_FILES[@]}"; do
+		[[ $_F != README ]] \
+			&& show_file_content "$_DIR" "$_F"
+	done
+
+	show_file_content "$_DIR" Pkgfile
+}
+
+show_file_content() {
+	local _DIR=$1
+	local _FILE=$2
+
+	cat "$_DIR/$_FILE" \
+		| sed "s/^/$_FILE: /"
+}
+
+main "$@"

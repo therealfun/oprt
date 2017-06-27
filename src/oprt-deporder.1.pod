@@ -1,0 +1,23 @@
+=pod
+
+=head1 NAME
+
+oprt-deporder - post-processed oprt-deptree
+
+=head1 SYNOPSIS
+
+oprt-depinst [port...]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used).
+
+=head1 DESCRIPTION
+
+B<oprt-deporder> runs B<oprt-deptree>, sorts the tree based on the dependencies level and path name, and remove the duplicates. It shows the order in which the packages will be installed by B<oprt-depinst>, and from which collection.
+
+Probably you won't need to run this tool directly.
+
+=head1 SEE ALSO
+
+oprt-deptree(1)
+
+=cut

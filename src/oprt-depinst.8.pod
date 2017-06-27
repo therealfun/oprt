@@ -1,0 +1,56 @@
+=pod
+
+=head1 NAME
+
+oprt-depinst - better alternative to C<prt-get depinst>
+
+=head1 SYNOPSIS
+
+oprt-depinst [port...]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used).
+
+=head1 DESCRIPTION
+
+While C<prt-get depinst> is a fancy way of doing:
+
+	deps=$(awk FS='Depends on:' '(NF > 1) {print $2}' < /usr/ports/C/P/Pkgfile)
+	for p in ${deps[@]} P; do
+		( cd /usr/ports/*/$p && pkgmk -d -i )
+	done
+
+what makes this tool more useful than C<prt-get depinst>?
+
+=over 4
+
+=item flexible port selection
+
+The port can be the current directory or any other port directory. You can pick the port from the right collection:
+
+	oprt-depinst /usr/ports/C/P
+
+=item B<grpinst> behaviour
+
+When used with multiple arguments it behaves like C<prt-get grpinst>. It will remove the ports installed in this session if one fails.
+
+=item B<depupd> behaviour
+
+While C<prt-get depinst> behaves like:
+
+	prt-get isinst port || prt-get depinst port
+
+B<oprt-depinst> will install any missing dependencies. It will also run B<revdep> on all the ports already installed, and rebuild/reinstall them when broken.
+
+=item the install process
+
+There are many others advantages related to the install process: logging the actions (install, rollback), more flexible handling of pre/post scripts and collections...
+ 
+See oprt-install(8), oprt-collections(1).
+
+=back
+
+=head1 SEE ALSO
+
+ports(8), prt-get(8), revdep(1)
+
+=cut

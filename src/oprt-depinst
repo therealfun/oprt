@@ -1,0 +1,79 @@
+#!/bin/bash
+
+libdir=${BASH_SOURCE%/*}
+. $libdir/oprt_lib
+
+main() {
+	local _ARGS=() _TO_INSTALL=() _INSTALLED=() _PORT_DIR
+	save_args_as_ports_dir "$@"
+
+	readarray -t _TO_INSTALL < <( $libdir/oprt-deporder "${_ARGS[@]}" )
+
+	for _PORT_DIR in "${_TO_INSTALL[@]}"; do	
+		lib_ask_about_install_scripts "$_PORT_DIR"
+	done
+
+	export OPRT_DONT_ASK_SCRIPT=1
+
+	for _PORT_DIR in "${_TO_INSTALL[@]}"; do
+		install_port "$_PORT_DIR" || {
+			lib_rollback_installs "${_INSTALLED[@]}"
+			lib_fatal_errorf '%s' "some ports failed"
+		}
+	done
+}
+
+save_args_as_ports_dir() {
+	(( $# == 0 )) && set -- $PWD
+
+	local _PORT
+
+	for _PORT; do
+		lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+		_ARGS+=( "$_PORT_DIR" )
+	done
+}
+
+install_port() {
+	local _PORT_DIR=$1
+
+	unset OPRT_INSTALL_REASON
+
+	lib_is_installed "$_PORT_DIR" && {
+		is_broken_port "$_PORT_DIR" || return 0
+
+		OPRT_INSTALL_REASON=rebuild
+		$libdir/oprt-reinstall "$_PORT_DIR"
+
+		return $?
+	}
+
+	port_explicitly_requested "$_PORT_DIR" \
+		|| export OPRT_INSTALL_REASON=depend
+
+	$libdir/oprt-install "$_PORT_DIR" || return 1
+
+	_INSTALLED+=( "$_PORT_DIR" )
+}
+
+port_explicitly_requested() {
+	local re=" $1 "
+	[[ " ${_ARGS[*]} " == $re ]]
+}
+
+is_broken_port() {
+	local _PORT_DIR=$1
+	local _PORT=${_PORT_DIR##*/}
+
+	local _BROKEN=0 _NOT_BROKEN=1
+
+	[[ -x "$(which revdep)" ]] && {
+		local _OUTPUT=( $(revdep "$_PORT") )
+		(( ${#_OUTPUT[@]} > 0 )) \
+			&& return $_BROKEN
+	}
+
+	return $_NOT_BROKEN
+}
+
+main "$@"

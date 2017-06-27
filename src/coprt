@@ -1,0 +1,75 @@
+#!/bin/bash
+
+main() {
+	export FUNC_ROOT=/
+	export FUNC_DONT_EXPORT_CWD=1
+	export FUNC_BIND
+
+	local _PKGMK_DIRS=($(
+		. /etc/pkgmk.conf
+		echo $PKGMK_PACKAGE_DIR
+		echo $PKGMK_SOURCE_DIR
+		echo $PKGMK_WORK_DIR
+	))
+	add_write_access "${_PKGMK_DIRS[@]}"
+
+	export OPRT_DONT_LOG=1
+	add_write_access $HOME/.cache/oprt
+
+	[[ ${CCACHE_DIR+defined} && -x /usr/bin/ccache ]] \
+		&& add_write_access "$CACHE_DIR"
+
+	[[ ${OPRT_REVDEP+defined} ]] \
+		|| OPRT_REVDEP="-i libreoffice"
+
+	export OPRT_REVDEP="${OPRT_REVDEP//[^a-zA-Z0-9 -]/}"
+
+	# we need fakeroot because of ports like dcron, dbus
+	export OPRT_BUILD_WITH_FAKEROOT=1
+
+	# we don't care in container
+	export OPRT_INSTALL_WITH_FORCE=1
+
+	# we don't need rejmerge in container
+	export OPRT_SKIP_REJMERGE=1
+
+	func bash <(
+		declare -f                   \
+			ccache_reset_stats   \
+			ccache_show_stats    \
+			is_ccache_enabled    \
+			copy_back_oprt_stuff \
+			run_oprt
+
+		echo run_oprt "$@"
+	)
+}
+
+add_write_access() {
+	# this is needed in order to avoid the copy-on-write
+	FUNC_BIND+=" $@"
+}
+
+ccache_reset_stats() {
+	is_ccache_enabled \
+		&& ccache --zero-stats
+}
+
+ccache_show_stats() {
+	is_ccache_enabled \
+		&& ccache --show-stats
+}
+
+is_ccache_enabled() {
+	[[ ${CCACHE_DIR+defined} && -x /usr/bin/ccache ]]
+}
+
+run_oprt() {
+	ccache_reset_stats
+	( set -o xtrace; oprt "$@" ) || exit 1
+	ccache_show_stats
+	true
+}
+
+main "$@"
+

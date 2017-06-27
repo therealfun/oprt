@@ -1,0 +1,29 @@
+=pod
+
+=head1 NAME
+
+oprt-dsearch - better alternative to C<grep '^# Description.*expr' /usr/ports/*/Pkgfile>
+
+=head1 SYNOPSIS
+
+oprt-dsearch expr
+
+=head1 DESCRIPTION
+
+B<oprt-dsearch> searches for expression I<expr> in the I<Description> header of all ports.
+
+Why is this tool more useful than the fancy C<grep> or C<prt-get dsearch>?
+
+=over 4
+
+=item more info
+
+It will show the installed version (if the port is installed), all the collections containing this port, with all the other useful informations: version, dependencies, files (see oprt-info(1)).
+
+=back
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

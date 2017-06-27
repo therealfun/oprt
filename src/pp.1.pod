@@ -1,0 +1,228 @@
+=pod
+
+=head1 NAME
+
+pp - patch CRUX ports
+
+=head1 SYNOPSIS
+
+pp [ ask portname... | askall portname... | update ]
+
+=head1 DESCRIPTION
+
+B<pp> creates new ports, based on the current ones, but with your changes.
+
+You don't have to maintain the new ports, just update the original ones and run:
+
+	pp update
+
+=head1 EXAMPLES
+
+The original mpv:
+
+	$ prt-get info -vv mpv
+	Name:         mpv
+	Path:         /usr/ports/contrib
+	...
+
+Customize the original mpv:
+
+	$ pp ask mpv
+	=== mpv ===
+	Port options: 
+	0) /usr/ports/contrib - 0.24.0
+	1) /usr/ports/teatime - 0.24.0
+	> Your choice? (default is 0) 1
+	Depends on: ffmpeg docutils libdvdread libdvdnav lua51
+	> Your list (ENTER for depends on, comma for none): ffmpeg lua51
+
+The mpv patches:
+
+	$ find .config/pp/mpv
+	.config/pp/mpv
+	.config/pp/mpv/dependencies
+	.config/pp/mpv/collection
+
+The new mpv port:
+
+	$ prt-get info -vv mpv
+	Name:         mpv
+	Path:         /home/u/.cache/pp
+	...
+	Dependencies: ffmpeg,lua51
+
+	$ find .cache/pp/mpv
+	.cache/pp/mpv
+	.cache/pp/mpv/.signature
+	.cache/pp/mpv/.footprint
+	.cache/pp/mpv/Pkgfile
+	.cache/pp/mpv/.md5sum
+
+Customize mpv again:
+
+	$ pp ask mpv
+	=== mpv ===
+	Port options: 
+	0) /usr/ports/contrib - 0.24.0
+	1) /usr/ports/teatime - 0.24.0
+	Your setting: /usr/ports/teatime
+	> Keep it? [Y/n] 
+	Depends on: ffmpeg docutils libdvdread libdvdnav lua51
+	Your setting: ffmpeg lua51
+	> Keep it? [Y/n] n
+	> Your list (ENTER for depends on, comma for none): ffmpeg
+
+Remove the new mpv port:
+
+	$ rm -r .config/pp/mpv
+	$ pp update
+	$ find .cache/pp/mpv
+	find: '.cache/pp/mpv': No such file or directory
+
+	$ prt-get info -vv mpv
+	Name:         mpv
+	Path:         /usr/ports/contrib
+	...
+
+The original nss-mdns port:
+
+	$ prt-get info -vv nss-mdns
+	Name:         nss-mdns
+	Path:         /usr/ports/alan
+	...
+
+Customize nss-mdns:
+
+	$ pp askall nss-mdns
+	=== nss-mdns ===
+	Depends on: 
+	> Your list (ENTER for depends on, comma for none): 
+	Version: 0.10
+	> Your version (ENTER for default): 
+	Sources: (http://0pointer.de/lennart/projects/$name/$name-$version.tar.gz)
+	> Your choice (ENTER for default) 
+	The original package build:
+	--- BEGIN
+	build () 
+	{ 
+	    cd $name-$version
+	    ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --disable-lynx
+	    make
+	    make DESTDIR=$PKG install
+	}
+	--- END
+	> Keep the original? [Y/n] n
+	editing /home/u/.config/pp/nss-mdns/build
+	> Add custom files? [y/N] 
+
+The nss-mdns patches:
+
+	$ find .config/pp/nss-mdns
+	.config/pp/nss-mdns
+	.config/pp/nss-mdns/build
+
+	$ cat .config/pp/nss-mdns/build
+	build () 
+	{ 
+	    cd $name-$version
+	    ./configure --prefix=/usr --sysconfdir=/etc --localstatedir=/var --disable-lynx --enable-legacy --disable-avahi
+	    make
+	    make DESTDIR=$PKG install
+	}
+
+The new nss-mdns port:
+
+	$ prt-get info -vv nss-mdns
+	Name:         nss-mdns
+	Path:         /home/u/.cache/pp
+	...
+
+	$ find .cache/pp/nss-mdns
+	.cache/pp/nss-mdns
+	.cache/pp/nss-mdns/.footprint
+	.cache/pp/nss-mdns/Pkgfile
+	.cache/pp/nss-mdns/.md5sum
+	.cache/pp/nss-mdns/.signature
+
+=head1 OPTIONS
+
+B<ask> portname ...
+
+Choose the collection/repository (when the port is found in more than one) and the dependencies. Your choices are saved to F<$PP_PREFS/portname/>.
+	
+This is the simplest way to select specific ports from low priority repositories. Instead of running C<sudo> to change F</etc/prt-get.conf> into something like:
+
+	prtdir /usr/ports/low:myport
+	prtdir /usr/ports/high
+	prtdir /usr/ports/low
+
+You just use:
+	
+	pp ask portname
+
+B<askall> portname ...
+
+Like B<ask>, but with more questions.
+
+B<update>
+
+Update all the ports you've customized. This action is automatically done after every B<ask>/B<askall>. You only need to explicitly run it if you've updated the original ports.
+	
+The new ports are built in F<$PP_PORTS/>, based on your choices saved in F<$PP_PREFS/>.
+
+=head1 CONFIGURATION
+
+Add F<$HOME/.cache/pp> as the first B<prtdir> in F</etc/prt-get.conf>, with B<$HOME> manually expanded.
+
+Create your keys (if you want your patched/generated ports to be signed):
+
+	signify -G -n -c pp -p $HOME/.ssh/pp.pub -s $HOME/.ssh/pp.sec
+	sudo cp $HOME/.ssh/pp.pub /etc/ports/
+
+=head1 ENVIRONMENT AND FILES
+
+B<PP_PREFS> (default: F<$HOME/.config/pp>)
+
+Your choices (the answers to B<ask>/B<askall> questions).
+
+B<PP_PORTS> (default: F<$HOME/.cache/pp>)
+
+The new ports (signed with F<$PP_SECKEY> if present).
+
+B<PP_SECKEY> (default: F<$HOME/.ssh/pp.sec>)
+
+The secret key used to sign your customized ports.
+
+B<PP_PUBKEY> (default: F</etc/ports/pp.pub>)
+
+The public key used by C<pkgmk> to verify the new ports. For an unknown reason, it has to be in F</etc/ports/>.
+
+B<PRT_CONF> (default: F</etc/prt-get.conf>)
+
+The collections (from which you're asked to choose) are read from this file.
+
+B<EDITOR>
+
+This environment variable must be set to some editor, if you want to customize the build() function.
+
+F</etc/pkgmk.conf>
+
+Used to get B<PKGMK_SOURCE_DIR>, B<PKGMK_IGNORE_SIGNATURE>, B<PKGMK_CHECK_SIGNATURE> and B<PKGMK_IGNORE_MD5SUM>.
+
+=head1 CAVEATS
+
+Checking F<.md5sum> or F<.signature> from original ports will temporary download the source files if not found in B<PKGMK_SOURCE_DIR> and can't be saved to that directory.
+
+Updating the F<.md5sum> or F<.signature> of your new ports will temporary download the missing sources again. 
+
+C<pp update> regenerates all your customized ports.
+
+=head1 SEE ALSO
+
+ports(8), prt-get.conf(5), pkgmk(8)
+
+=head1 LICENSE
+
+Public domain
+
+=cut

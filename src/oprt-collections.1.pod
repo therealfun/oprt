@@ -1,0 +1,64 @@
+=pod
+
+=head1 NAME
+
+oprt-collections - better alternative to C<echo /usr/ports/*/port>
+
+=head1 SYNOPSIS
+
+oprt-collections [port]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used instead).
+
+=head1 DESCRIPTION
+
+Why is this tool more useful than C<echo /usr/ports/*/port>?
+
+Because it shows the collections in order of priority:
+
+1) Personal preference regarding a specific port.
+
+Use pp(1) or make a symlink:
+
+	mkdir $PP_PORTS
+	ln -s /usr/ports/collection/port $PP_PORTS/port
+
+2) Personal preference regarding collections.
+
+Add the collection pathnames to F<$OPRT_DIR/user_collections> file (line by line).
+
+3) By statistics, based on the installed packages. 
+
+You probably won't need to run this tool. It is used by all the other tools.
+
+=head1 ENVIRONMENT AND FILES
+
+=over 4
+
+=item B<OPRT_COLLECTION_ONE> (default: not set)
+
+If set, it will show only the first (priority) collection.
+
+=item B<OPRT_DIR> (default: $HOME/.cache/oprt)
+
+The directory keeping the user settings.
+
+=item B<OPRT_DIR/stats_collections>
+
+A file containing the list of all the collections having unique installed ports (automaticaly regenerated if older than one day).
+
+=item B<OPRT_DIR/user_collections>
+
+A file containing the list with user preferred collections.
+
+=item B<PP_PORTS> (default: $HOME/.cache/pp)
+
+The collection with personal selections of ports. See pp(1).
+
+=back
+
+=head1 SEE ALSO
+
+pp(1), ports(8), prt-get(8)
+
+=cut

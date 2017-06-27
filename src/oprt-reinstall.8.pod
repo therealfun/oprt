@@ -1,0 +1,23 @@
+=pod
+
+=head1 NAME
+
+oprt-reinstall - better alternative to C<pkgmk -d -f -u>
+
+=head1 SYNOPSIS
+
+oprt-reinstall [port...]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used instead).
+
+=head1 DESCRIPTION
+
+This tool removes the package from the package directory, to force a rebuild, and execute B<oprt-install>.
+
+See oprt-install(8) for the advantages over the fancy command.
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

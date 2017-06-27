@@ -1,0 +1,51 @@
+=pod
+
+=head1 NAME
+
+oprt-update - better alternative to C<prt-get sysup>
+
+=head1 SYNOPSIS
+
+oprt-update [[-]port...]
+
+B<oprt-update> upgrades or downgrades C<outdated> ports.
+
+I<port> can be a port name, a port directory, or missing (and the output of B<oprt-diff> will be used instead).
+
+=head1 DESCRIPTION
+
+Why is B<oprt-update> more useful than C<prt-get sysup>?
+
+B<oprt-update> does something like:
+
+	oprt-diff | awk '{print $1}' | xargs -r -n1 oprt-depinst
+	revdep                       | xargs -r -n1 oprt-reinstall
+	rejmerge
+
+but, you have the posibility to specify which ports should not be updated (I<-port>), or which ones should be updated, and even from which collection.
+
+B<oprt-update>  will also downgrade packages if I<the main collection> of a port has a lower version than what is installed.
+
+B<oprt-update> will run B<revdep>, and rebuild/reinstall the broken ports. It will also run B<rejmerge> if needed.
+
+B<oprt-update> will ask about delayed port scripts, about dangling build logs.
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item B<OPRT_SKIP_REJMERGE> (default: not defined)
+
+If defined, B<rejmerge> will not be used.
+
+=item B<OPRT_REVDEP> (default: C<-i libreoffice>)
+
+The options passed to the B<revdep> command.
+
+=back
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8), revdep(1), rejmerge(8)
+
+=cut

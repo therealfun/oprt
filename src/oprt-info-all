@@ -1,0 +1,4 @@
+#!/bin/bash
+
+export OPRT_INFO_ALL=1
+exec ${BASH_SOURCE%/*}/oprt-info "$@"

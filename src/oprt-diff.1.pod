@@ -1,0 +1,23 @@
+=pod
+
+=head1 NAME
+
+oprt-diff - show outdated ports
+
+=head1 SYNOPSIS
+
+oprt-diff
+
+=head1 DESCRIPTION
+
+B<oprt-diff>, unlike C<ports -d>, it behaves like C<prt-get diff>, showing only the differences against the main collection (not against all collections having one of the installed ports).
+
+B<oprt-diff> has one advantage against B<prt-get diff>: it shows the missing ports (installed, but not found in any collection).
+
+B<oprt-diff> is linked to B<oprt-update>, like C<prt-get diff> with C<prt-get sysup>. In fact, the output of B<oprt-diff> is used as input by B<oprt-update>, if no other input is given.
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8), oprt-update(1)
+
+=cut

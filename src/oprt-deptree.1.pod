@@ -1,0 +1,59 @@
+=pod
+
+=head1 NAME
+
+oprt-deptree - show dependencies tree
+
+=head1 SYNOPSIS
+
+oprt-deptree [port...]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used).
+
+=head1 DESCRIPTION
+
+B<oprt-deptree> shows a dependencies tree for a group of ports.
+
+If the B<OPRT_DEPTREE_RAW> variable is set, it will show a full dependency tree, with full port pathnames.
+
+By default, it shows a human friendly dependencies tree, similar with C<prt-get deptree>.
+
+Why is this tool more useful than C<prt-get deptree>?
+
+=over 4
+
+=item flexible port selection
+
+The port can be the current directory or any other port directory. You can pick the right collection:
+
+	oprt-deptree /usr/ports/C/P
+
+=item shows more info
+
+With the default invocation (without B<OPRT_DEPTREE_RAW>), it shows installed and the latest version.
+
+=item works on group of ports
+
+So? Indeed, is not too much useful for human friendly version.
+
+=item shows the cyclic dependencies string
+
+I've heard rumours that B<prt-get> can't show this.
+
+=back
+
+=head1 ENVIRONMENT
+
+=over 4
+
+=item B<OPRT_DEPTREE_RAW> (default: unset)
+
+If set, it will show a raw dependency tree, with full port pathnames.
+
+=back
+
+=head1 SEE ALSO
+
+prt-get(8)
+
+=cut

@@ -1,0 +1,127 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+use File::stat ();
+use POSIX      ();
+
+my @pkg_to_check = @ARGV;
+@pkg_to_check = ('.*') if scalar(@pkg_to_check) == 0;
+
+my $def_exclude = '/var/log/wtmp /var/log/btmp /usr/share/mime/.*';
+my @exclude     = (
+	split ' ',
+	defined $ENV{PRTCHECKEDITS_EXCLUDE}
+	? $ENV{PRTCHECKEDITS_EXCLUDE}
+	: $def_exclude
+);
+
+#
+# https://st.aticpan.org/source/MJD/Stat-lsMode-0.50/lsMode.pm
+#
+my @perms = qw(--- --x -w- -wx r-- r-x rw- rwx);
+my @ftype = qw(. p c ? d ? b ? - ? l ? s ? ? ?);
+$ftype[0] = '';
+
+sub mod2str
+{
+	my $mode   = shift;
+	my $setids = ($mode & 07000) >> 9;
+	my @permstrs =
+	    @perms[($mode & 0700) >> 6, ($mode & 0070) >> 3, $mode & 0007];
+	my @ftype = ($ftype[($mode & 0170000) >> 12]);
+
+	if ($setids) {
+		if ($setids & 01) {    # Sticky bit
+			$permstrs[2] =~ s/([-x])$/$1 eq 'x' ? 't' : 'T'/e;
+		}
+		if ($setids & 04) {    # Setuid bit
+			$permstrs[0] =~ s/([-x])$/$1 eq 'x' ? 's' : 'S'/e;
+		}
+		if ($setids & 02) {    # Setgid bit
+			$permstrs[1] =~ s/([-x])$/$1 eq 'x' ? 's' : 'S'/e;
+		}
+	}
+
+	join '', @ftype, @permstrs;
+}
+
+my $pkg_dir;
+open my $f, "/etc/pkgmk.conf"
+    or die "Couldn't open /etc/pkgmk.conf: $!\n";
+while (<$f>) {
+	$pkg_dir = $1 if m,^\s*PKGMK_PACKAGE_DIR\s*=\s*"?([^"]+?)"?$,;
+}
+die "Couldn't find PKGMK_PACKAGE_DIR in /etc/pkgmk.conf\n"
+    if not $pkg_dir;
+
+my %pkgs;
+
+open $f, "< /var/lib/pkg/db"
+    or die "Couldn't open package database!\n";
+{
+	local $/ = "";    # read files paragraph-wise; see ``perldoc perlvar''
+	while (<$f>) {
+		my ($pkg_name, $pkg_version, @pkg_file) = split /\n/;
+		next if not grep { $pkg_name =~ m,^$_$, } @pkg_to_check;
+		my $pkg_arc =
+		      $pkg_dir . '/'
+		    . $pkg_name . '#'
+		    . $pkg_version
+		    . '.pkg.tar.gz';
+		if (not -f $pkg_arc) {
+			print STDERR "Missing $pkg_arc\n";
+		} else {
+			$pkgs{$pkg_arc} = $pkg_name;
+		}
+	}
+}
+close $f or die "Error reading from /var/lib/pkg/db: $!\n";
+
+# Using tar instead of bsdtar because of --full-time,
+# but stderr must be hidden because tar prints:
+# 	"Ignoring unknown extended header keyword 'SCHILY.fflags'"
+# Does rebuilding tar changes something?:
+#   export FORCE_UNSAFE_CONFIGURE=1
+#   ./configure
+#   ...
+foreach my $pkg_arc (keys %pkgs) {
+	my $cmd =
+"tar --numeric-owner --full-time --verbose --list --file $pkg_arc 2>/dev/null";
+	my $pipe;
+	if (not open $pipe, "$cmd|") {
+		print STDERR "Invalid $pkg_arc\n";
+		next;
+	}
+	while (<$pipe>) {
+		my ($o_mode, $o_chown, $o_size, $o_date, $o_time, $name) =
+		    split ' ';
+		$name = "/$name";
+		next if not -e $name or name_excluded($name);
+		my $type = substr $o_mode, 0, 1;
+		my ($o_uid, $o_gid) = split '/', $o_chown;
+		my $c    = File::stat::lstat($name);
+		my $diff = '';
+		$diff .= 'o' if $o_uid != $c->uid or $o_gid != $c->gid;
+		my $c_mode = mod2str($c->mode);
+		$c_mode =~ s/^-/h/ if $type eq 'h';    # hardlinks
+		$diff .= 'x' if $o_mode ne $c_mode;
+
+		if ($type ne 'd') {
+			$diff .= 's' if $type eq '-' and $o_size != $c->size;
+			my $c_mtime = POSIX::strftime("%Y-%m-%d %H:%M:%S",
+				localtime $c->mtime);
+			$o_time = substr $o_time, 0, 8;    # ignore fractions
+			$diff .= 't' if "$o_date $o_time" ne $c_mtime;
+		}
+		printf "%s %s %s\n", $name, $pkgs{$pkg_arc}, $diff if $diff;
+	}
+	close $pipe or print STDERR "Invalid $pkg_arc\n";
+}
+
+sub name_excluded
+{
+	my $name = shift;
+	map { return 1 if $name =~ m,^$_$,; } @exclude;
+	return 0;
+}

@@ -1,0 +1,97 @@
+#!/bin/bash
+
+. Pkgfile
+. /etc/pkgmk.conf
+
+set -e
+
+[ -v pkg_dir  ] || pkg_dir=$PKGMK_PACKAGE_DIR/
+[ -w $pkg_dir ] || pkg_dir=$(pwd)/
+[ -v src_dir  ] || src_dir=$PKGMK_SOURCE_DIR
+[ -w $src_dir ] || src_dir=
+
+package="${name}#${version}-${release}.pkg.tar.gz"
+declare -A _local_
+for f in ${source[@]}; do
+	if [[ $f =~ ^(http|https|ftp|file)://.*/(.+) ]]; then
+		_local_[$f]="${local_source_prefix}${BASH_REMATCH[2]}"
+	else
+		_local_[$f]="$f"
+	fi
+done
+
+[ ! -d src ] || rm -rf src
+[ ! -d pkg ] || rm -rf pkg
+
+if [ "$1" = "-c" ]; then
+	for url in "${!_local_[@]}"; do
+		here=${_local_[$url]}
+		[ "$url" = "$here" ] || [ ! -e "$here" ] || rm -rf "$here"
+	done
+	[ ! -e "$package" ] || rm "$package"
+	exit 0
+fi
+
+mkdir src pkg
+
+for url in "${!_local_[@]}"; do
+	here=${_local_[$url]}
+	[ -e "$here" ] || [ "$src_dir" = "" ] || [ ! -e "$src_dir/$here" ] || ln -sf "$src_dir/$here"
+	[ -e "$here" ] || (
+		wget -O "$here" "$url"
+		[ "$src_dir" = "" ] || (mv "$here" $src_dir/ && ln -sf "$src_dir/$here")
+	)	
+	case "$here" in
+		*.tar|*.tar.gz|*.tar.Z|*.tgz|*.tar.bz2|*.tbz2|*.tar.xz|*.txz|*.tar.lzma|*.tar.lz|*.zip|*.rpm)
+			bsdtar -p -o -C src -xf "$(pwd)/$here" ;;
+		*)
+			cp "$here" src/ ;;
+	esac
+done
+
+(SRC=$(pwd)/src; PKG=$(pwd)/pkg; cd src; set -x; build)
+
+filter="grep -v -f .nostrip"
+[ -f .nostrip ] || filter=cat
+find pkg -type f | $filter | while read f; do
+	case $(file -b "$f") in
+		*ELF*executable*not\ stripped*)     strip --strip-all      "$f" ;;
+		*ELF*shared\ object*not\ stripped*) strip --strip-unneeded "$f" ;;
+		current\ ar\ archive)               strip --strip-debug    "$f" ;;
+	esac
+done
+
+find pkg -type  f -path '*/man/man*/*' \
+	| grep -v '.gz$'               \
+	| xargs -r -n1 -I{} gzip -9 '{}'
+find pkg -xtype l -path '*/man/man*/*'                                   \
+	| xargs -r -n1 -I{} sh -c "ln -sf \"\$(readlink -n '{}')\" '{}'"
+
+[ $UID -eq 0 ] || fake_uid="--uid 0 --gid 0"
+(cd pkg; bsdtar $fake_uid -cf "$pkg_dir$package" *)
+[ "$pkg_dir" = "$(pwd)/" ] || ln -sf "$pkg_dir$package"
+
+pkginfo --footprint "$package"                                                \
+	| sed "s|\tlib/modules/`uname -r`/|\tlib/modules/<kernel-version>/|g" \
+	| sort -k 3                                                           \
+	> .footprint
+
+for key in ~/.ssh/*.sec /etc/ports/*.sec; do
+	[[ -e $key ]] || continue
+	pub=/etc/ports/$(basename ${key/%.sec/.pub})
+	if [ -e $pub ]; then
+		pub=$(readlink -f $pub)
+		ordered=()
+		for f in ${source[@]}; do ordered+=("${_local_[$f]}"); done
+		sha256sum --tag Pkgfile .footprint "${ordered[@]}"      \
+		| sed 's|^SHA256 (.*/\(.*\))\(.* = .*\)|SHA256 (\1)\2|' \
+		| signify -S -e -x - -q -s $key -m -                    \
+		| sed "s|${key/%.sec/.pub}|$pub|"                       \
+		> .signature
+		break
+	fi
+done
+
+[[ -e .signature ]] \
+	|| md5sum "${_local_[@]}" | sed 's,  .*/,  ,' | sort -k 2 > .md5sum
+

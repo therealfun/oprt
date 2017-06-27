@@ -1,0 +1,31 @@
+=pod
+
+=head1 NAME
+
+oprt-cleanup - cleanup sources and packages
+
+=head1 SYNOPSIS
+
+oprt-cleanup [src_dir pkg_dir]
+
+Both directories can be replaced with one of the words: I<none> or I<default>.
+
+When I<default> is used as a directory name, or is missing from the command line, the directory will be extracted from F</etc/pkgmk.conf>.
+
+When I<none> is used as a directory name, the cleanup is skipped for that directory.
+
+When invoked without arguments, I<default> will considered for both directories.
+
+=head1 DESCRIPTION
+
+B<oprt-cleanup> removes the old sources and the old packages.
+
+The sources are considered old if its coresponding port is not installed. However, only the files older than 30 days are removed.
+
+The packages are considered old if the port is not installed (unless this is the latest build and it is not older than an year), or is installed but the packages is not in the last 3 builds. However, only the files older than 30 days are removed.
+
+=head1 SEE ALSO
+
+ports(8), pkgmk(8)
+
+=cut

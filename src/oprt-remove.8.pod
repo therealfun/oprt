@@ -1,0 +1,31 @@
+=pod
+
+=head1 NAME
+
+oprt-remove - better alternative to C<pkgrm port>
+
+=head1 SYNOPSIS
+
+oprt-remove [port...]
+
+I<port> can be a port name, a port directory, or missing (and the current directory will be used instead).
+
+=head1 DESCRIPTION
+
+Why is this tool more useful than the fancy one or C<prt-get remove>?
+
+=over 4
+
+=item logging
+
+=item automatic use of B<sudo>
+
+Runs B<sudo pkgrm> when the current user is not B<root>.
+
+=back
+
+=head1 SEE ALSO
+
+prt-get(8), ports(8)
+
+=cut

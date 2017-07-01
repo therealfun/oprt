@@ -74,6 +74,10 @@ If set, C<pkgadd --force> will be used.
 
 If set, it will ignore footprint errors. Usefull when testing ports.
 
+=item B<OPRT_DONT_RUN_SCRIPTS> (default: unset)
+
+Don't run pre/post install scripts.
+
 =back
 
 =head1 SEE ALSO

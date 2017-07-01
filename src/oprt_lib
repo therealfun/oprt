@@ -202,6 +202,8 @@ lib_run_port_script() {
 	local port_dir=$1
 	local script=$2
 
+	[[ ${OPRT_DONT_RUN_SCRIPTS+defined} ]] && return 0
+
 	lib_ack_to_run_port_script "$@" || return 0
 
 	lib_run_sudo_cmd sh -x "$port_dir/$script"

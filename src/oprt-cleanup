@@ -7,6 +7,8 @@ main() {
 		|| (( $# == 2 )) \
 		|| lib_fatal_errorf '%s' "two arguments are required, or none"
 
+	local _NOW="$(date +%s)"
+
 	remove_old_source_files "${1:-default}"
 	remove_old_packages     "${2:-default}"
 }
@@ -25,56 +27,62 @@ remove_old_source_files() {
 
 	echo "Remove old sources..."
 
-	declare -A _USED
-	local _PORT _INSTALLED
-	readarray -t _INSTALLED < <( pkginfo --installed | awk '{print $1}' )
+	find "$_SRC_DIR" -type f -name '*.partial'             \
+		| xargs --no-run-if-empty --max-args=1 echo rm \
+		| sh -x -
 
-	for _PORT in "${_INSTALLED[@]}"; do
-		local _SRC _SOURCES
-		readarray -t _SOURCES < <( get_remote_sources "$_PORT" )
-
-		for _SRC in "${_SOURCES[@]}"; do
-			_USED["$_SRC"]=1
-		done
-	done
-
-	remove_unused_old_files_from_dir "$_SRC_DIR" 30
+	while read -r _SRC; do
+		is_newer_than_n_days "$_SRC" 30 \
+			|| printf '%s\n' "$_SRC"
+	done < <(
+		comm -13 \
+			<(show_installed_sources "$_SRC_DIR" | sort --unique) \
+			<(show_all_sources       "$_SRC_DIR" | sort --unique)
+	) \
+	| xargs --no-run-if-empty --max-args=1 echo rm \
+	| sh -x -
 }
 
-get_remote_sources() {
-	local _PORT=$1
-
-	lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
-
-	. "$_PORT_DIR/Pkgfile"
-
-	local _SRC
-	local _REMOTE_FILE="^(http|https|ftp|file)://.*/(.+)"
-	local _DUMB_FILE="^v?[0-9]"
-	for _SRC in "${source[@]}"; do
-		[[ $_SRC =~ $_REMOTE_FILE ]] || continue
-
-		local _FILE=${BASH_REMATCH[2]}
-		                               printf '%s\n'        "$_FILE"
-		[[ $_FILE =~ $_DUMB_FILE ]] && printf '%s\n' "$_PORT-$_FILE"
-	done
+show_installed_sources() {
+	local _SRC_DIR=$1
+	(
+		. <( sed 's/^main "$@"$//' < $(which pkgmk))
+		. /etc/pkgmk.conf
+		OPRT_COLLECTION_ONE=1
+		__match="^$PKGMK_SOURCE_DIR/"
+		while read -r __name _ ; do
+			__dir=$(oprt-collections "$__name")
+			__pkgfile="$__dir/$__name/Pkgfile"
+			[[ -f $__pkgfile ]] || continue
+			(
+				. "$__pkgfile"
+				for __src in "${source[@]}"; do
+					__file=$(get_filename "$__src")
+					[[ $__file =~ $__match ]] || continue
+					printf '%s\n' "$__file"
+				done
+			)
+		done < <(pkginfo --installed)
+	) | sed -e 's,$PKGMK_SOURCE_DIR,$_SRC_DIR,g'
 }
 
-remove_unused_old_files_from_dir() {
-	local _DIR=$1
+show_all_sources() {
+	local _SRC_DIR=$1
+	find "$_SRC_DIR" -name '.*' -prune -o -type f 
+}
+
+is_newer_than_n_days() {
+	local _FILE=$1
 	local _DAYS=$2
 
-	local _FILE
-	for _FILE in $_DIR/*; do
-		[[ -f $_FILE ]] \
-			|| continue
+	local _LIMIT=$(( $_NOW - $_DAYS * 24 * 60 * 60 ))
 
-		[[ ${_USED["${_FILE##*/}"]+defined} ]] \
-			&& continue
+	# Using change time (%Z) instead of modification time (%Y)
+	# because wget creates files with the original modification time
 
-		is_newer_than_n_days "$_FILE" $_DAYS \
-			|| ( set -x; lib_run_cmd rm -- "$_FILE" )
-	done
+	local _TIME="$(stat --format='%Z' "$_FILE")"
+
+	(( $_TIME > $_LIMIT ))
 }
 
 remove_old_packages() {
@@ -125,25 +133,6 @@ remove_old_packages() {
 			' <(pkginfo --installed) /dev/stdin           \
 		| xargs --no-run-if-empty --max-args=1 echo rm        \
 		| sh -x -
-}
-
-is_newer_than_an_year() {
-	is_newer_than_n_days "$1" 365
-}
-
-is_newer_than_n_days() {
-	local _FILE=$1
-	local _DAYS=$2
-
-	local _NOW="$(date +%s)"
-	local _LIMIT=$(( $_NOW - $_DAYS * 24 * 60 * 60 ))
-
-	# Using change time (%Z) instead of modification time (%Y)
-	# because wget creates files with the original modification time
-
-	local _TIME="$(stat --format='%Z' "$_FILE")"
-
-	(( $_TIME > $_LIMIT ))
 }
 
 main "$@"

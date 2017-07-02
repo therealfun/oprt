@@ -82,8 +82,7 @@ remove_old_packages() {
 
 	[[ $_PKG_DIR == default ]] && {
 		_PKG_DIR=$(. /etc/pkgmk.conf; echo $PKGMK_PACKAGE_DIR)
-		[[ $_PKG_DIR == "" || $_PKG_DIR == $PWD ]] \
-			&& return
+		[[ $_PKG_DIR == "" ]] && _PKG_DIR=/usr/ports
 	}
 
 	[[ $_PKG_DIR == none ]] \
@@ -91,58 +90,41 @@ remove_old_packages() {
 
 	echo "Remove old packages..."
 
-	local _PORT _FILE
+	# Find recursively, to work with default settings too.
+	#  - find prints "pkg_filename mtime pkg_dir"
+	#  - sed rewrite to "port_name version mtime pkg_dir"
+	#  - first sort drops duplicates sorted by name and version
+	#  - second sort order by name and mtime
+	#  - awk shows "path/name#version.pkg.tar.*" for 
+	#      older than 3 versions and older than 30 days
+	#  - xargs formats "rm" shell commands
+	#  - sh executes those commands
 
-	declare -A _INSTALLED
-	while read -r _PORT _; do
-		_INSTALLED["$_PORT"]=1
-	done < <( pkginfo --installed )
-
-	declare -A _SEEN
-	for _FILE in $_PKG_DIR/*\#*; do
-		[[ -e $_FILE ]] || continue
-
-		_PORT=${_FILE##*/}
-		_PORT=${_PORT%%\#*}
-
-		_SEEN["$_PORT"]=1
-	done
-
-	declare -A _USED
-	for _PORT in "${!_SEEN[@]}"; do
-		return_port_packages_sorted "$_PORT"
-		local _KEEP=()
-		if [[ ${_INSTALLED["$_PORT"]+defined} ]]; then
-			_KEEP=( ${return[@]:0:3} )
-		else
-			[[ $return[0] != "" ]] \
-				&& is_newer_than_an_year "$_PKG_DIR/${return[0]}" \
-				&& _KEEP=( ${return[0]} )
-		fi
-		for _FILE in "${_KEEP[@]}"; do
-			# Keeping the .sig files too
-			local _F
-			for _F in $_PKG_DIR/${_FILE}*; do
-				[[ -e "$_F" ]] && _USED["${_F##*/}"]=1
-			done
-		done
-	done
-
-	remove_unused_old_files_from_dir "$_PKG_DIR" 30
-}
-
-return_port_packages_sorted() {
-	return=()
-	local _TIME _FILE
-	while read -r _TIME _FILE; do
-		return+=( "${_FILE##*/}" )
-	done < <(
-		find "$_PKG_DIR"                                \
-			-maxdepth 1                             \
-			-name "${_PORT}#*[.]pkg[.]tar[.][^.]*"  \
-			-printf '%T@ %p\n'                      \
-		| sort -nr
-	)
+	find "$_PKG_DIR" -name '*#*.pkg.tar.*' -printf '%T@ %h %f\n' \
+		| sed   --expression='s/#/ /'                        \
+			--expression='s/.pkg.tar.*//'                \
+		| sort --key=3,4 --unique                            \
+		| sort --key=3,3 --key=1,1r                          \
+		| awk                                                \
+			--assign=MAX_N=3                             \
+			--assign=MAX_DAYS=30                         \
+			'
+			BEGIN     { now=systime()    }
+			(NF == 2) { installed[$1]=$2 }
+			(NF == 4) {
+			  if (port[$3] >= MAX_N || (port[$3] == 0 && !installed[$3])) {
+			    n=MAX_DAYS
+			    if (port[$3] == 0)
+			      n=n*4
+			    if (now > $1 && (now - $1)/(60*60*24) > n)
+			      print $2 "/" $3 "#" $4 ".pkg.tar.* "
+			  } else {
+			    port[$3]++
+			  }
+			}
+			' <(pkginfo --installed) /dev/stdin           \
+		| xargs --no-run-if-empty --max-args=1 echo rm        \
+		| sh -x -
 }
 
 is_newer_than_an_year() {

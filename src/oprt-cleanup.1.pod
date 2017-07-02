@@ -22,7 +22,7 @@ B<oprt-cleanup> removes the old sources and the old packages.
 
 The sources are considered old if its coresponding port is not installed. However, only the files older than 30 days are removed.
 
-The packages are considered old if the port is not installed (unless this is the latest build and it is not older than an year), or is installed but the packages is not in the last 3 builds. However, only the files older than 30 days are removed.
+For the installed ports, packages older than 30 days and not being in the last 3 builds will be deleted. Packages from ports which are not installed anymore are deleted if older than 4*30 days.
 
 =head1 SEE ALSO
 

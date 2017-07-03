@@ -12,7 +12,12 @@ main() {
 	local _PORT _PORT_DIR _OK=1
 
 	for _PORT; do
-		lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+		local _COLS=$(oprt-collections "$_PORT")
+		if [[ $_COLS == "" ]] && lib_is_installed "$_PORT"; then
+			_PORT_DIR=$_PORT
+		else
+			lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+		fi
 		remove_port "$_PORT_DIR" || _OK=0
 	done
 	

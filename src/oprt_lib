@@ -27,12 +27,18 @@ lib_return_installed_version() {
 # This is slow.
 # Tried: awk, grep, cache files, return_pkgfile_version() + cache files
 lib_pkgfile_version() {
-	awk '
-		BEGIN             { version="" ; release=1 ;  }
-		($1 == "version") { version=$2 }
-		($1 == "release") { release=$2 }
-		END               { print version "-" release }
-	' FS="=" <"$1/Pkgfile"
+	local _PKGFILE="$1/Pkgfile"
+	if [[ -e $_PKGFILE ]]; then
+		awk '
+			BEGIN             { version="" ; release=1 ;  }
+			($1 == "version") { version=$2 }
+			($1 == "release") { release=$2 }
+			END               { print version "-" release }
+		' FS="=" < "$_PKGFILE"
+	else
+		pkginfo --installed \
+			| awk -v NAME=${1##*/} '($1 == NAME) { print $2 }'
+	fi
 }
 
 lib_pkgfile_version0() {

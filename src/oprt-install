@@ -76,8 +76,11 @@ build_and_install() {
 
 	printf '%(%F %T)T Building "%s" - %s\n' -1 "$_PORT_DIR" "$_BUILD_LOG"
 	while ! lib_run_cmd $_BUILD_CMD $_BUILD_OPT >&3 2>&1; do
-		ignore_build_error \
-			&& break
+		ignore_build_error && {
+			lib_find_pkg "$_PORT_DIR"
+			touch "$pkg"
+			break
+		}
 		fix_build_error    \
 			|| return $_FAILED
 		save_build_log_line

@@ -20,7 +20,7 @@ Why is this tool more useful than C<ck4up>?
 
 =item B<stateless>
 
-B<oprt-watch> B<always> shows if the current port needs a source update, as oposed to B<ck4up>, which shows B<only once> if the watched B<webpage has been modified>.
+B<oprt-watch> B<always> shows if the current port needs a source update, as opposed to B<ck4up>, which shows B<only once> if the watched B<webpage has been modified>.
 
 =item B<noiseless>
 
@@ -33,6 +33,12 @@ B<oprt-watch> checks ports in parallel, and doesn't need to fetch to whole page.
 =item B<distributed>
 
 B<oprt-watch> shows the same thing regardless the current machine. Anybody can easily check if the port is up to date, because the I<watching howto> is present within the port.
+
+=item B<watch multiple sources for the same port>
+
+The output of an B<.watch> script is one or more lines containing a
+version number, optionally followed by a variable name from B<Pkgfile>
+(default is B<version>).
 
 =back
 

@@ -21,23 +21,26 @@ main() {
 }
 
 check() {
-	local _WATCH=$1
-
+	local    _WATCH=$1
 	local _PORT_DIR=${_WATCH%/*}
 
 	[[ -e "$_PORT_DIR/Pkgfile" ]] \
-		|| return 0
+		|| return
 
-	local _UPSTREAM_VERSION="$(sh "$_WATCH")"
-	[[ $_UPSTREAM_VERSION != "" ]] || {
-		lib_warningf 'URL match failed: %s\n' "$_PORT_DIR"
-		return 0
-	}
+	. "$_PORT_DIR/Pkgfile"
 
-	local _PORT_VERSION="$(lib_pkgfile_version0 "$_PORT_DIR")"
-	[[ $_PORT_VERSION == $_UPSTREAM_VERSION ]] ||
-		lib_warningf '%s: %s -> %s' "$_PORT_DIR" \
-			"$_PORT_VERSION" "$_UPSTREAM_VERSION"
+	local _UPVER _NAME
+	while read -r _UPVER _NAME; do
+		[[ $_UPVER != "" ]] || {
+			lib_warningf 'URL match failed: %s\n' "$_PORT_DIR"
+			continue
+		}
+		_NAME=${_NAME:-version}
+		_NAME=${_NAME//[^a-z_]/}
+		local _PORT_VERSION=${!_NAME}
+		[[ $_PORT_VERSION == $_UPVER ]] \
+			|| lib_warningf '%s: %s -> %s' "$_PORT_DIR" "$_PORT_VERSION" "$_UPVER"
+	done < <(sh "$_WATCH")
 
 	return 0
 }

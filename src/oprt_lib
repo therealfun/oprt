@@ -74,7 +74,7 @@ lib_is_shell_interactive() {
 }
 
 lib_set_PORT_DIR_and_COLLECTIONS() {
-	if [[ -d $1 ]]; then
+	if [[ -e "$1/Pkgfile" ]]; then
 		_PORT_DIR=$(readlink -f "$1")
 		_COLLECTIONS=( "${_PORT_DIR%/*}" )
 	else

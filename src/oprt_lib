@@ -123,8 +123,11 @@ lib_save_script_question() {
 			printf '%s %s\n' "$port" "$script" >> "$memo"
 			;;
 		later)
+			[[ ${OPRT_DONT_DELAY_SCRIPT+defined} ]]              \
+				&& return
 			lib_is_script_answer_present later "$port" "$script" \
-				|| printf '%s %s\n' "$port" "$script" >> "$memo"
+				&& return
+			printf '%s %s\n' "$port" "$script" >> "$memo"
 			;;
 	esac
 }

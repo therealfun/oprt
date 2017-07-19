@@ -166,8 +166,9 @@ ask_later_script_questions() {
 		esac
 	done
 
-	(( $? == 0 ))                         \
-		&& sync                       \
+	(( $? == 0 ))                                        \
+		&& [[ ! ${OPRT_DONT_DELAY_SCRIPT+defined} ]] \
+		&& sync                                      \
 		&& mv "$_MEMO.new" "$_MEMO"
 }
 

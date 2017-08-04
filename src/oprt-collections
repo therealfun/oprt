@@ -79,6 +79,8 @@ is_stats_file_up_to_date() {
 }
 
 generate_collections_stats() {
+	[[ ${OPRT_DONT_UPDATE_COLLECTION_STATS+defined} ]] && return
+
 	declare -A _SINGLE
 	local _NAME
 

@@ -1,5 +1,5 @@
 PREFIX           = /usr
-VERSION          = 1.91
+VERSION          = 1.92
 POD_CMD         := pod2man --utf8 --center=oprt --release=$(VERSION) 
 
 SRC_MAN1        := $(wildcard src/*.1.pod)

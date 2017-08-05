@@ -14,6 +14,9 @@ main() {
 		|| add_todo_from_oprt_diff
 
 	select_what_to_update
+
+	local _FAILED=()
+
 	install_missing_dependencies
 	update_selected_ports
 	rebuild_broken_ports
@@ -27,6 +30,11 @@ main() {
 		ask_about_successful_build_logs
 
 		lib_run_rejmerge
+	}
+
+	(( ${#_FAILED[@]} == 0 )) || {
+		lib_warningf 'Failed: %s' "${_FAILED[@]}"
+		exit 1
 	}
 }
 	
@@ -84,12 +92,13 @@ install_missing_dependencies() {
 	done
 
 	for _PORT in "${_TO_INSTALL[@]}"; do
-		$libdir/oprt-depinst "$_PORT"
+		$libdir/oprt-depinst "$_PORT"   \
+			|| _FAILED+=( "$_PORT" )
 	done
 }
 
 update_selected_ports() {
-	local _PORT_DIR _FAILED=()
+	local _PORT_DIR
 
 	for _PORT_DIR in "${to_update[@]}"; do
 		(
@@ -98,9 +107,6 @@ update_selected_ports() {
 			$libdir/oprt-install "$_PORT_DIR"
 		) || _FAILED+=( "$_PORT_DIR" )
 	done
-
-	(( ${#_FAILED[@]} == 0 )) \
-		|| lib_warningf 'Failed: %s' "${_FAILED[@]}"
 }
 
 rebuild_broken_ports() {
@@ -113,7 +119,7 @@ rebuild_broken_ports() {
 		lib_warningf 'broken port: %s\n' "$_PORT"
 	done
 
-	local _FAILED=() _STILL=()
+	local _STILL=()
 	for _PORT in "${_BROKEN[@]}"; do
 		[[ ${exclude["$_PORT"]+defined} ]] && {
 			_STILL+=( "$_PORT" )
@@ -127,8 +133,6 @@ rebuild_broken_ports() {
 		) || _FAILED+=( "$_PORT" )
 	done
 
-	(( ${#_FAILED[@]} == 0 )) \
-		|| lib_warningf 'Failed: %s' "${_FAILED[@]}"
 	(( ${#_STILL[@]} == 0 )) \
 		|| lib_warningf 'Still broken: %s' "${_STILL[@]}"
 }

@@ -58,7 +58,7 @@ parse_args() {
 add_todo_from_oprt_diff() {
 	local _PORT _INSTALLED _LATEST
 
-	while read _PORT _INSTALLED _ _LATEST; do
+	while read _PORT _INSTALLED _ _LATEST _; do
 		[[ $_LATEST == unknown ]] && {
 			lib_warningf 'Port "%s" (%s) cannot be found in any collection.' "$_PORT" "$_INSTALLED"
 			continue

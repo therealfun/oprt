@@ -25,9 +25,13 @@ main() {
 		printf 'Last log entries: %s\n' "$OPRT_DIR/log"
 		tail "$OPRT_DIR/log" | tac
 
-		ask_later_script_questions
-		ask_about_failed_build_logs
-		ask_about_successful_build_logs
+		[[ ${OPRT_DONT_ASK_SCRIPT+defined} ]] || {
+			ask_later_script_questions
+		}
+		[[ ${OPRT_DONT_LOG+defined} ]] || {
+			ask_about_failed_build_logs
+			ask_about_successful_build_logs
+		}
 
 		lib_run_rejmerge
 	}

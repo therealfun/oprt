@@ -1,11 +1,10 @@
 #!/bin/bash
 
-. ${BASH_SOURCE%/*}/oprt_lib
-
 main() {
-	(( $# == 0 ))            \
-		|| (( $# == 2 )) \
-		|| lib_fatal_errorf '%s' "two arguments are required, or none"
+	(( $# == 0 )) || (( $# == 2 )) || {
+		echo "ERROR: two arguments are required, or none"
+		exit 1
+	}
 
 	local _NOW="$(date +%s)"
 
@@ -15,56 +14,68 @@ main() {
 
 remove_old_source_files() {
 	local _SRC_DIR=$1
-
-	[[ $_SRC_DIR == default ]] && {
-		_SRC_DIR=$(. /etc/pkgmk.conf; echo $PKGMK_SOURCE_DIR)
-		[[ $_SRC_DIR == "" || $_SRC_DIR == $PWD ]] \
-			&& return
-	}
-
-	[[ $_SRC_DIR == none ]] \
-		&& return
+	validate_src_dir || return
 
 	echo "Remove old sources..."
 
-	find "$_SRC_DIR" -type f -name '*.partial'             \
-		| xargs --no-run-if-empty --max-args=1 echo rm \
-		| sh -x -
+	find "$_SRC_DIR" -type f -name '*.partial' \
+		| remove_files_verbose
 
-	while read -r _SRC; do
-		is_newer_than_n_days "$_SRC" 30 \
+	while read -r _SRC
+	do
+		is_newer_than_n_days "$_SRC" 10 \
 			|| printf '%s\n' "$_SRC"
 	done < <(
 		comm -13 \
 			<(show_installed_sources "$_SRC_DIR" | sort --unique) \
 			<(show_all_sources       "$_SRC_DIR" | sort --unique)
 	) \
-	| xargs --no-run-if-empty --max-args=1 echo rm \
+	| remove_files_verbose
+}
+
+validate_src_dir() {
+	[[ $_SRC_DIR == default ]] && {
+		_SRC_DIR=$(. /etc/pkgmk.conf; echo $PKGMK_SOURCE_DIR)
+		[[ $_SRC_DIR == "" || $_SRC_DIR == $PWD ]] \
+			&& return 1
+	}
+
+	_SRC_DIR=$(readlink -f "$_SRC_DIR")
+	[[ $_SRC_DIR != none && $_SRC_DIR != "" ]]
+}
+
+remove_files_verbose() {
+	xargs --no-run-if-empty --max-args=1 echo rm \
 	| sh -x -
 }
 
-show_installed_sources() {
+# To get proper names for sources, we include pkgmk (without running it)
+# and then we include /etc/pkgmk.conf (for PKGMK_SOURCE_DIR)
+# The function body is inside (), running as a sub-shell.
+show_installed_sources() (
 	local _SRC_DIR=$1
-	(
-		. <( sed 's/^main "$@"$//' < $(which pkgmk))
-		. /etc/pkgmk.conf
-		OPRT_COLLECTION_ONE=1
-		__match="^$PKGMK_SOURCE_DIR/"
-		while read -r __name _ ; do
-			__dir=$(oprt-collections "$__name")
-			__pkgfile="$__dir/$__name/Pkgfile"
-			[[ -f $__pkgfile ]] || continue
-			(
-				. "$__pkgfile"
-				for __src in "${source[@]}"; do
-					__file=$(get_filename "$__src")
-					[[ $__file =~ $__match ]] || continue
-					printf '%s\n' "$__file"
-				done
-			)
-		done < <(pkginfo --installed)
-	) | sed -e 's,$PKGMK_SOURCE_DIR,$_SRC_DIR,g'
-}
+	. <( sed 's/^main "$@"$//' < /usr/bin/pkgmk )
+	. /etc/pkgmk.conf
+
+	export OPRT_COLLECTION_ONE=1
+
+	local match="^$PKGMK_SOURCE_DIR/"
+
+	while read -r port _
+	do
+		pkgfile="$(oprt-collections "$port")/$port/Pkgfile"
+
+		[[ -f $pkgfile ]] && (
+			. "$pkgfile"
+			for src in "${source[@]}"
+			do
+				file=$(get_filename "$src")
+				[[ $file =~ $match ]] \
+					&& printf '%s\n' "$file"
+			done
+		)
+	done < <(pkginfo --installed) | sed -e "s@$PKGMK_SOURCE_DIR@$_SRC_DIR@g"
+)
 
 show_all_sources() {
 	local _SRC_DIR=$1
@@ -87,52 +98,58 @@ is_newer_than_n_days() {
 
 remove_old_packages() {
 	local _PKG_DIR=$1
+	validate_pkg_dir || return
 
+	echo "Remove old packages..."
+
+	# Find recursively, to work with default settings too.
+	#  - find prints    "mtime pkg_dir pkg_filename"
+	#  - sed rewrite to "mtime pkg_dir port_name version"
+	#  - first sort drops duplicates sorted by name and version
+	#  - second sort order by name and mtime
+	#  - awk read two streams:
+	#      + pkginfo --installed           (NF=2)
+	#      + file list from find/sed above (NF=4)
+	#    and shows "path/name#version.pkg.tar.*"
+	#    for files older than 3 versions and older than 30 days,
+	#    for those not installed, 
+	#        latest version if older than 30*3 days
+	#        all the other  if older than 30/3 days
+
+	find "$_PKG_DIR" -name '*#*.pkg.tar.*' -printf '%T@ %h %f\n' \
+	| sed   --expression='s/#/ /'                                \
+		--expression='s/.pkg.tar.*//'                        \
+	| sort --key=3,4 --unique                                    \
+	| sort --key=3,3 --key=1,1r                                  \
+	| awk  --assign=MAX_N=3 --assign=MAX_DAYS=30 '
+		BEGIN     { now=systime()    }
+		(NF == 2) { installed[$1]=$2 }
+		(NF == 4) {
+		    if (port[$3] >= MAX_N || !installed[$3]) {
+		        n=MAX_DAYS
+		        if (!installed[$3]) {
+			    if (port[$3] == 0) {
+			        n=n*3
+			    } else {
+			        n=n/3
+			    }
+			}
+			if (now > $1 && (now - $1)/(60*60*24) > n)
+			    print $2 "/" $3 "#" $4 ".pkg.tar.* "
+		    }
+		    port[$3]++
+	        }
+	' <(pkginfo --installed) /dev/stdin | remove_files_verbose
+}
+
+validate_pkg_dir() {
 	[[ $_PKG_DIR == default ]] && {
 		_PKG_DIR=$(. /etc/pkgmk.conf; echo $PKGMK_PACKAGE_DIR)
 		[[ $_PKG_DIR == "" ]] && _PKG_DIR=/usr/ports
 	}
 
-	[[ $_PKG_DIR == none ]] \
-		&& return
-
-	echo "Remove old packages..."
-
-	# Find recursively, to work with default settings too.
-	#  - find prints "pkg_filename mtime pkg_dir"
-	#  - sed rewrite to "port_name version mtime pkg_dir"
-	#  - first sort drops duplicates sorted by name and version
-	#  - second sort order by name and mtime
-	#  - awk shows "path/name#version.pkg.tar.*" for 
-	#      older than 3 versions and older than 30 days
-	#  - xargs formats "rm" shell commands
-	#  - sh executes those commands
-
-	find "$_PKG_DIR" -name '*#*.pkg.tar.*' -printf '%T@ %h %f\n' \
-		| sed   --expression='s/#/ /'                        \
-			--expression='s/.pkg.tar.*//'                \
-		| sort --key=3,4 --unique                            \
-		| sort --key=3,3 --key=1,1r                          \
-		| awk                                                \
-			--assign=MAX_N=3                             \
-			--assign=MAX_DAYS=30                         \
-			'
-			BEGIN     { now=systime()    }
-			(NF == 2) { installed[$1]=$2 }
-			(NF == 4) {
-			  if (port[$3] >= MAX_N || (port[$3] == 0 && !installed[$3])) {
-			    n=MAX_DAYS
-			    if (port[$3] == 0)
-			      n=n*4
-			    if (now > $1 && (now - $1)/(60*60*24) > n)
-			      print $2 "/" $3 "#" $4 ".pkg.tar.* "
-			  } else {
-			    port[$3]++
-			  }
-			}
-			' <(pkginfo --installed) /dev/stdin           \
-		| xargs --no-run-if-empty --max-args=1 echo rm        \
-		| sh -x -
+	_PKG_DIR=$(readlink -f "$_PKG_DIR")
+	[[ $_PKG_DIR != none &&  $_PKG_DIR != "" ]]
 }
 
 main "$@"

@@ -20,9 +20,9 @@ When invoked without arguments, I<default> will considered for both directories.
 
 B<oprt-cleanup> removes the old sources and the old packages.
 
-The sources are considered old if its coresponding port is not installed. However, only the files older than 30 days are removed.
+The sources are considered old if its coresponding port is not installed. However, only the files older than 10 days are removed.
 
-For the installed ports, packages older than 30 days and not being in the last 3 builds will be deleted. Packages from ports which are not installed anymore are deleted if older than 4*30 days.
+For the installed ports, packages older than 30 days and not being in the last 3 builds will be deleted. Packages from ports which are not installed are deleted if older than 30*3 days (the latest) or 30/3 days (all the other).
 
 =head1 SEE ALSO
 

@@ -10,6 +10,8 @@ main() {
 
 	remove_old_source_files "${1:-default}"
 	remove_old_packages     "${2:-default}"
+
+	echo Done
 }
 
 remove_old_source_files() {
@@ -40,8 +42,10 @@ validate_src_dir() {
 			&& return 1
 	}
 
+	[[ $_SRC_DIR == none ]] && return 1
+
 	_SRC_DIR=$(readlink -f "$_SRC_DIR")
-	[[ $_SRC_DIR != none && $_SRC_DIR != "" ]]
+	[[ $_SRC_DIR != "" ]]
 }
 
 remove_files_verbose() {
@@ -148,8 +152,10 @@ validate_pkg_dir() {
 		[[ $_PKG_DIR == "" ]] && _PKG_DIR=/usr/ports
 	}
 
+	[[ $_PKG_DIR == none ]] && return 1
+	
 	_PKG_DIR=$(readlink -f "$_PKG_DIR")
-	[[ $_PKG_DIR != none &&  $_PKG_DIR != "" ]]
+	[[ $_PKG_DIR != "" ]]
 }
 
 main "$@"

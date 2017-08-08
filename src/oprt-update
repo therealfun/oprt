@@ -87,10 +87,11 @@ install_missing_dependencies() {
 		readarray -t _DEPS < <( $libdir/oprt-pkgfile-deps "$_PORT" )
 		for _DEP in "${_DEPS[@]}"; do
 			local _PORT_DIR _COLLECTIONS
-			lib_is_installed                 "$_DEP" || continue
-			lib_set_PORT_DIR_and_COLLECTIONS "$_DEP"
-			lib_ask_about_install_scripts    "$_PORT_DIR"
-			_TO_INSTALL+=( "$_PORT_DIR" )
+			lib_is_installed "$_DEP" || {
+				lib_set_PORT_DIR_and_COLLECTIONS "$_DEP"
+				lib_ask_about_install_scripts    "$_PORT_DIR"
+				_TO_INSTALL+=( "$_PORT_DIR" )
+			}
 		done
 
 	done

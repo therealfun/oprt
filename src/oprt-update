@@ -84,7 +84,7 @@ install_missing_dependencies() {
 
 	for _PORT in "${to_update[@]}"; do
 		local _DEPS=() _DEP
-		readarray -t _DEPS < <( $libdir/oprt-pkgfile-deps "$_PORT" )
+		read -r -a _DEPS < <( $libdir/oprt-pkgfile-deps "$_PORT" )
 		for _DEP in "${_DEPS[@]}"; do
 			local _PORT_DIR _COLLECTIONS
 			lib_is_installed "$_DEP" || {

@@ -6,7 +6,7 @@ _REASON=${OPRT_INSTALL_REASON:-request}
 _REASON=${_REASON//^[a-z]/_}
 
 main() {
-	local _BUILD_CMD="nice -n 19 ionice --class idle pkgmk --download"
+	local _BUILD_CMD="nice -n 19 ionice --class idle /usr/bin/time -v pkgmk --download"
 	local _INSTALL_CMD=pkgadd
 	local _RC=0
 

@@ -67,11 +67,9 @@ is_broken_port() {
 
 	local _BROKEN=0 _NOT_BROKEN=1
 
-	[[ -x "$(which revdep)" ]] && {
-		local _OUTPUT=( $(revdep "$_PORT") )
-		(( ${#_OUTPUT[@]} > 0 )) \
-			&& return $_BROKEN
-	}
+	[[ -x "$(which revdep)" ]]                  \
+		&& [[ "$(revdep "$_PORT")" != "" ]] \
+		&& return $_BROKEN
 
 	return $_NOT_BROKEN
 }

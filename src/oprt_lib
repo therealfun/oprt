@@ -300,11 +300,8 @@ lib_warningf() {
 lib_return_full_revdep() {
 	return=()
 
-	[[ -x "$(which revdep)" ]] || return
-
-	printf 'revdep %s\n' "$OPRT_REVDEP"
-
-	readarray -t return < <( revdep $OPRT_REVDEP )
+	[[ -x "$(which revdep)" ]] \
+		&& readarray -t return < <( set -x; revdep $OPRT_REVDEP )
 }
 
 lib_run_rejmerge() {

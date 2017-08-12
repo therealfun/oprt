@@ -73,7 +73,7 @@ build_and_install() {
 	cd "$_PORT_DIR" >&3 2>&1  \
 		|| return $_FAILED
 
-	lib_run_port_script "$_PORT_DIR" pre-install \
+	lib_run_port_script "$_PORT_DIR" pre-install >&3 2>&1 \
 		|| return $_FAILED
 
 	printf '%(%F %T)T Building "%s" - %s\n' -1 "$_PORT_DIR" "$_BUILD_LOG"
@@ -103,7 +103,10 @@ build_and_install() {
 
 	lib_add_to_log "INSTALL $_PORT_DIR $_VERSION $_REASON"
 
-	lib_run_port_script "$_PORT_DIR" post-install
+	lib_run_port_script "$_PORT_DIR" post-install >&3 2>&1 \
+		|| return $_FAILED
+
+	return 0
 }
 
 save_build_log_line() {

@@ -182,14 +182,18 @@ remember_this_build() {
 }
 
 ask_later_script_questions() {
-	local _PORT _SCRIPT
-	local _MEMO="$OPRT_DIR/later_script"
+	local _FILE
 
-	[[ -e $_MEMO ]] || return
+	for _FILE in $OPRT_DIR/*.later
+	do
+		[[ -e $_FILE ]] || continue
 
-	exec 3<"$_MEMO" 4>"$_MEMO.new"
+		local _F=${_FILE##*/}
+		      _F=${_F%.later}
 
-	while read -u 3 -r _PORT _SCRIPT; do
+		local   _PORT=${_F%.*}
+		local _SCRIPT=${_F#$_PORT}
+
 		lib_return_prev_script_answer "$_PORT" "$_SCRIPT"
 		[[ $return == unknown ]] || continue
 
@@ -200,6 +204,7 @@ ask_later_script_questions() {
 		case $return in
 			run)
 				lib_save_script_question run "$_PORT" "$_SCRIPT"
+				rm -- "$_FILE"
 				(
 					export OPRT_DONT_ASK_SCRIPT=1
 					lib_run_port_script "$_PORT_DIR" "$_SCRIPT"
@@ -207,17 +212,10 @@ ask_later_script_questions() {
 				;;
 			ignore)
 				lib_save_script_question ignore "$_PORT" "$_SCRIPT"
-				;;
-			*)
-				printf '%s %s\n' "$_PORT" "$_SCRIPT" >&4
+				rm -- "$_FILE"
 				;;
 		esac
 	done
-
-	(( $? == 0 ))                                        \
-		&& [[ ! ${OPRT_DONT_DELAY_SCRIPT+defined} ]] \
-		&& sync                                      \
-		&& mv "$_MEMO.new" "$_MEMO"
 }
 
 ask_about_failed_build_logs() {

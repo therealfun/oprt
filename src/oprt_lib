@@ -86,16 +86,15 @@ lib_set_PORT_DIR_and_COLLECTIONS() {
 }
 
 lib_is_script_answer_present() {
-	local place=$1
-	local port=$2
+	local   type=$1
+	local   port=$2
 	local script=$3
-	local memo="$OPRT_DIR/${place}_script"
 
-	[[ -e "$memo" ]] && grep --regex="^$port ${script}\$" "$memo" > /dev/null
+	[[ -e "$OPRT_DIR/$port.$script.$type" ]]
 }
 
 lib_return_prev_script_answer() {
-	local port=$1
+	local   port=$1
 	local script=$2
 
 	lib_is_script_answer_present run    "$port" "$script" && {
@@ -112,31 +111,28 @@ lib_return_prev_script_answer() {
 }
 
 lib_save_script_question() {
-	local place=$1
-	local port=$2
-	local script=$3
+	local     type=$1
+	local port_dir=$2
+	local   script=$3
 
-	local memo="$OPRT_DIR/${place}_script"
+	local port=${port_dir##*/}
+	local memo="$OPRT_DIR/$port.$script.$type"
 
-	case $place in
-		run|ignore)
-			printf '%s %s\n' "$port" "$script" >> "$memo"
-			;;
-		later)
-			[[ ${OPRT_DONT_DELAY_SCRIPT+defined} ]]              \
-				&& return
-			lib_is_script_answer_present later "$port" "$script" \
-				&& return
-			printf '%s %s\n' "$port" "$script" >> "$memo"
-			;;
+	case $type in
+		run)                         cat "$port_dir/$script" >       "$memo" ;;
+		ignore)                                                touch "$memo" ;;
+		later)      [[ ${OPRT_DONT_DELAY_SCRIPT+defined} ]] || touch "$memo" ;;
 	esac
 }
 
 lib_return_ask_script_question() {
 	local port_dir=$1
-	local script=$2
+	local   script=$2
 
-	[[ ${OPRT_DONT_ASK_SCRIPT+defined} ]] && { return=later; return; }
+	[[ ${OPRT_DONT_ASK_SCRIPT+defined} ]] && {
+		return=later
+		return
+	}
 
 	PS3="Run $port_dir/$script (see above) ? "
 	echo "--- begin ---"
@@ -153,7 +149,7 @@ lib_return_ask_script_question() {
 
 lib_ask_about_install_scripts() {
 	local port_dir=$1
-	local port=${port_dir##*/}
+	local     port=${port_dir##*/}
 
 	local script
 	for script in {pre,post}-install; do
@@ -168,7 +164,7 @@ lib_ask_about_install_scripts() {
 			return=later
 		fi
 
-		lib_save_script_question $return "$port" $script
+		lib_save_script_question $return "$port_dir" $script
 	done
 }
 
@@ -182,29 +178,53 @@ lib_rollback_installs() {
 
 lib_ack_to_run_port_script() { 
 	local port_dir=$1
-	local script=$2
+	local   script=$2
 
 	local port=${port_dir##*/}
-	local true=0
-	local false=1
+	local  yes=0
+	local   no=1
 
-	[[ -f "$port_dir/$script" ]] || return $false
+	[[ -f "$port_dir/$script" ]] || return $no
 
 	lib_return_prev_script_answer "$port" "$script"
 	case $return in
-		run)    return $true  ;;
-		ignore) return $false ;;
+		run)
+			diff -u "$OPRT_DIR/$port.$script.run" "$port_dir/$script" \
+				&& return $yes
+			lib_is_shell_interactive \
+				|| return $no
+			lib_confirm "Script '$port_dir/$script' changed. Continue?" || {
+				rm "$OPRT_DIR/$port.$script.run"
+				return $no
+			}
+			cat "$port_dir/$script" > "$OPRT_DIR/$port.$script.run"
+			return $yes
+			;;
+		ignore)
+			return $no
+			;;
 	esac
 
 	lib_is_shell_interactive || {
-		lib_save_script_question later "$port" "$script"
-		return $false
+		lib_save_script_question later "$port_dir" "$script"
+		return $no
 	}
 
 	lib_return_ask_script_question          "$port_dir" "$script"
-	lib_save_script_question        $return "$port"     "$script"
+	lib_save_script_question        $return "$port_dir" "$script"
 
 	[[ $return == run ]]
+}
+
+lib_confirm() {
+	read -p "> $@ [y/N] "
+	if [[ $REPLY == "" ]]; then
+		return 1
+	fi
+	case $REPLY in
+		y*|Y*) return 0;;
+		    *) return 1;;
+	esac
 }
 
 lib_run_port_script() {

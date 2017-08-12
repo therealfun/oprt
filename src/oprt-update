@@ -119,12 +119,9 @@ rebuild_broken_ports() {
 	local _BROKEN=( ${return[@]} );
 	(( ${#_BROKEN[@]} > 0 )) || return
 
-	local _PORT
-	for _PORT in "${_BROKEN[@]}"; do
-		lib_warningf 'broken port: %s\n' "$_PORT"
-	done
+	lib_warningf 'Broken port: %s' "${_BROKEN[@]}"
 
-	local _STILL=()
+	local _PORT _STILL=()
 	for _PORT in "${_BROKEN[@]}"; do
 		[[ ${exclude["$_PORT"]+defined} ]] && {
 			_STILL+=( "$_PORT" )

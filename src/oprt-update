@@ -123,20 +123,62 @@ rebuild_broken_ports() {
 
 	local _PORT _STILL=()
 	for _PORT in "${_BROKEN[@]}"; do
-		[[ ${exclude["$_PORT"]+defined} ]] && {
+		if   [[ ${exclude["$_PORT"]+defined} ]]
+		then
 			_STILL+=( "$_PORT" )
-			continue
-		}
-
-		(
-			export OPRT_INSTALL_REASON=rebuild
-			export OPRT_DONT_ASK_SCRIPT=1
-			$libdir/oprt-reinstall "$_PORT"
-		) || _FAILED+=( "$_PORT" )
+		elif ! rebuild_one_broken_port "$_PORT"
+		then
+			_FAILED+=( "$_PORT" )
+		fi
 	done
 
 	(( ${#_STILL[@]} == 0 )) \
 		|| lib_warningf 'Still broken: %s' "${_STILL[@]}"
+}
+
+rebuild_one_broken_port() ( # sub-shell function
+	local _PORT=$1 _PORT_DIR
+
+	lib_set_PORT_DIR_and_COLLECTIONS "$_PORT"
+
+	export OPRT_INSTALL_REASON=rebuild
+	export OPRT_DONT_ASK_SCRIPT=1
+
+	if      already_rebuilt        "$_PORT" "$_PORT_DIR"
+	then
+		$libdir/oprt-install   "$_PORT"
+	else
+		$libdir/oprt-reinstall "$_PORT"
+	fi
+
+	rc=$?
+	(( $rc == 0 )) \
+		&& remember_this_build "$_PORT" "$_PORT_DIR"
+	return $rc
+)
+
+already_rebuilt() {
+	local     _PORT=$1
+	local _PORT_DIR=$2
+
+	local _MEMO="$OPRT_DIR/$_PORT.rebuilt"
+
+	[[ -e "$_MEMO" ]]                    \
+		&& lib_find_pkg "$_PORT_DIR" \
+		&& (( $(stat --format='%Y' "$pkg") == $(cat "$_MEMO") ))
+}
+
+remember_this_build() {
+	local     _PORT=$1
+	local _PORT_DIR=$2
+
+	local _MEMO="$OPRT_DIR/$_PORT.rebuilt"
+
+	[[ -f "$_MEMO" ]] \
+		&& rm "$_MEMO"
+
+	lib_find_pkg "$_PORT_DIR" \
+		&& stat --format='%Y' "$pkg" > "$_MEMO"
 }
 
 ask_later_script_questions() {

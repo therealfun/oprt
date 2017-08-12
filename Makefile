@@ -27,9 +27,11 @@ $(DEST_MAN1)/%: build/% ; install -Dm644 $< $@
 
 $(DEST_MAN8)/%: build/% ; install -Dm644 $< $@
 
-build/%.1: src/%.1.pod  ; $(POD_CMD) --section=1 $< $@
+build/%.1: src/%.1.pod
+	$(POD_CMD) --name=`echo $* | tr '[a-z]' '[A-Z]'` --section=1 $< $@
 
-build/%.8: src/%.8.pod  ; $(POD_CMD) --section=8 $< $@
+build/%.8: src/%.8.pod
+	$(POD_CMD) --name=`echo $* | tr '[a-z]' '[A-Z]'` --section=8 $< $@
 
 $(DEST_BIN_FILES):  $(DEST_BIN)
 $(DEST_MAN1_FILES): $(DEST_MAN1) build

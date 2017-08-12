@@ -153,7 +153,7 @@ handle_footprint_mismatch() {
 have_footprint_exception() {
 	local not_found=1 found=0 i
 
-	for i in $OPRT_DIR/footprint.$_PORT.*; do
+	for i in $OPRT_DIR/$_PORT.footprint.*; do
 		[[ -e $i ]]                                        \
 			&& diff <(extract_build_error) "$i" >/dev/null \
 			&& return $found
@@ -163,7 +163,7 @@ have_footprint_exception() {
 }
 
 add_footprint_exception() {
-	extract_build_error >"$OPRT_DIR/footprint.$_PORT.$(date +%s)"
+	extract_build_error >"$OPRT_DIR/$_PORT.footprint.$(date +%s)"
 }
 
 handle_md5sum_mismatch() {

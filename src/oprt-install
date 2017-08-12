@@ -8,7 +8,7 @@ _REASON=${_REASON//^[a-z]/_}
 # Should work with pkg files too
 
 main() {
-	local _BUILD_CMD="nice -n 19 ionice --class idle /usr/bin/time -v pkgmk --download"
+	local _BUILD_CMD="nice -n 19 ionice --class idle pkgmk --download"
 	local _INSTALL_CMD=pkgadd
 	local _RC=0
 
@@ -37,23 +37,6 @@ main() {
 	done
 
 	return $_RC
-}
-
-reset_ccache_stats() {
-	is_ccache_enabled \
-		&& ccache --zero-stats
-}
-
-is_ccache_enabled() {
-	local     cc=$(which cc)
-	local ccache=$(which ccache)
-
-	[[ $cc != "" && $ccache != "" && "$(readlink -f "$cc")" == $ccache ]]
-}
-
-show_ccache_stats() {
-	is_ccache_enabled \
-		&& ccache --show-stats
 }
 
 build_and_install_with_log() {
@@ -87,12 +70,10 @@ build_and_install_with_log() {
 build_and_install() {
 	local _FAILED=1
 
-	reset_ccache_stats
-
 	cd "$_PORT_DIR" >&3 2>&1  \
 		|| return $_FAILED
 
-	lib_run_port_script "$_PORT_DIR" pre-install >&3 2>&1 \
+	lib_run_port_script "$_PORT_DIR" pre-install \
 		|| return $_FAILED
 
 	printf '%(%F %T)T Building "%s" - %s\n' -1 "$_PORT_DIR" "$_BUILD_LOG"
@@ -122,12 +103,7 @@ build_and_install() {
 
 	lib_add_to_log "INSTALL $_PORT_DIR $_VERSION $_REASON"
 
-	lib_run_port_script "$_PORT_DIR" post-install >&3 2>&1 \
-		|| return $_FAILED
-
-	show_ccache_stats >&3 2>&1
-
-	return 0
+	lib_run_port_script "$_PORT_DIR" post-install
 }
 
 save_build_log_line() {

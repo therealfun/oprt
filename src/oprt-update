@@ -168,7 +168,7 @@ already_rebuilt() {
 
 	if [[ -e "$_MEMO" ]]; then
 		lib_find_pkg "$_PORT_DIR" \
-			&& (( $(stat --format='%Y' "$pkg") == $(cat "$_MEMO") ))
+			&& (( $(stat --format='%Y' "$pkg") == $(cat "$_MEMO") )) \
 			&& return $yes
 		rm "$_MEMO"
 	fi

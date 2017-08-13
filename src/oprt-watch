@@ -27,6 +27,9 @@ check() {
 	[[ -e "$_PORT_DIR/Pkgfile" ]] \
 		|| return
 
+	(cd "$_PORT_DIR" && pkgmk -cs) \
+		|| return
+
 	. "$_PORT_DIR/Pkgfile"
 
 	local _UPVER _NAME

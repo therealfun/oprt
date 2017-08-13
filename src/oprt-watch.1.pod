@@ -34,11 +34,17 @@ B<oprt-watch> checks ports in parallel, and doesn't need to fetch to whole page.
 
 B<oprt-watch> shows the same thing regardless the current machine. Anybody can easily check if the port is up to date, because the I<watching howto> is present within the port.
 
+=item B<flexible>
+
+You can watch ftp directories for projects that don't tag releases, don't publish the release fixes on a webpage, but make ftp archives (eg. https://download.gnome.org/sources/gmime/).
+
+You can watch release fixes for projects that don't announce them or keep them for several versions ordered by date (eg. https://github.com/erlang/otp/releases).
+
 =item B<watch multiple sources for the same port>
 
 The output of an B<.watch> script is one or more lines containing a
 version number, optionally followed by a variable name from B<Pkgfile>
-(default is B<version>).
+(default is B<version>). This is usefull when you watch ports having components that must match (eg. when using heavy patches against linux kernel which may not work with the latest stable version).
 
 =back
 

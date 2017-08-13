@@ -200,7 +200,7 @@ ask_later_script_questions() {
 		      _F=${_F%.later}
 
 		local   _PORT=${_F%.*}
-		local _SCRIPT=${_F#$_PORT}
+		local _SCRIPT=${_F#$_PORT.}
 
 		lib_return_prev_script_answer "$_PORT" "$_SCRIPT"
 		[[ $return == unknown ]] || continue

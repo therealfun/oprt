@@ -106,7 +106,7 @@ remove_old_packages() {
 
 	echo "Remove old packages..."
 
-	# Find recursively, to work with default settings too.
+	# Find recursively (works on any directory):
 	#  - find prints    "mtime pkg_dir pkg_filename"
 	#  - sed rewrite to "mtime pkg_dir port_name version"
 	#  - first sort drops duplicates sorted by name and version

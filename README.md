@@ -19,7 +19,7 @@ Tool | Description
 [oprt-remove(8)](src/oprt-remove.8.pod) | better alternative to `pkgrm port`
 [oprt-search(1)](src/oprt-search.1.pod) | better alternative to `echo /usr/ports/*/*expr*`
 [oprt-update(8)](src/oprt-update.8.pod) | better alternative to `prt-get sysup`
-[oprt-watch(8)](src/oprt-watch.8.pod) | better alternative to `ck4up`
+[oprt-watch(1)](src/oprt-watch.1.pod) | better alternative to `ck4up`
 [pp(1)](src/pp.1.pod) | patch CRUX ports
 [prtcheckedits(1)](src/prtcheckedits.1.pod) | print modified files (installed with pkgutils)
 [prtchecknew(1)](src/prtchecknew.1.pod) | print local/new files (not installed with pkgutils)

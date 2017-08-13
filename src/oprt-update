@@ -163,9 +163,17 @@ already_rebuilt() {
 
 	local _MEMO="$OPRT_DIR/$_PORT.rebuilt"
 
-	[[ -e "$_MEMO" ]]                    \
-		&& lib_find_pkg "$_PORT_DIR" \
-		&& (( $(stat --format='%Y' "$pkg") == $(cat "$_MEMO") ))
+	local yes=0
+	local  no=1
+
+	if [[ -e "$_MEMO" ]]; then
+		lib_find_pkg "$_PORT_DIR" \
+			&& (( $(stat --format='%Y' "$pkg") == $(cat "$_MEMO") ))
+			&& return $yes
+		rm "$_MEMO"
+	fi
+
+	return $no
 }
 
 remember_this_build() {

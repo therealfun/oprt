@@ -12,5 +12,6 @@ for port in "${@:-$PWD}"; do
 	todo+=( "$_PORT_DIR" )
 done
 
+export OPRT_INSTALL_REBUILD=yes
 export OPRT_INSTALL_REASON=${OPRT_INSTALL_REASON:-reinstall}
 exec $libdir/oprt-install "${todo[@]}"

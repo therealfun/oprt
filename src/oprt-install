@@ -44,6 +44,7 @@ build_and_install_with_log() {
 	local _BUILD_LOG="$OPRT_DIR/${_PORT_DIR##*/}.build.log"
 	local _INSTALL_OPT=
 	local _BUILD_OPT=
+	local _TIMING=0
 
 	[[ -e "${_BUILD_LOG}.failed" ]]       \
 		&& rm "${_BUILD_LOG}.failed"
@@ -51,8 +52,14 @@ build_and_install_with_log() {
 	(( $_UPGRADED == 1 ))                 \
 		&& _INSTALL_OPT+=" --upgrade"
 
-	[[ ${OPRT_INSTALL_WITH_FORCE+defined} ]] \
-		&& _INSTALL_OPT+=" --force"
+	if [[ ${OPRT_INSTALL_WITH_FORCE+defined} ]]; then
+		_INSTALL_OPT+=" --force"
+	elif lib_find_up_to_date_pkg "$_PORT_DIR"; then
+		_TIMING=1
+	fi
+
+	[[ ${OPRT_INSTALL_REBUILD+defined} ]] \
+		&& _BUILD_OPT+=" --force"
 
 	_BUILD_LOG_LINE=1
 	build_and_install 3> >(tee "$_BUILD_LOG")
@@ -69,6 +76,9 @@ build_and_install_with_log() {
 
 build_and_install() {
 	local _FAILED=1
+	local _TIME=("/usr/bin/time" "-f" 'BUILD STATS: %E %P %M KB I/O/S:%I/%O/%W')
+
+	(( $_TIMING == 1 )) || _TIME=()
 
 	cd "$_PORT_DIR" >&3 2>&1  \
 		|| return $_FAILED
@@ -77,7 +87,7 @@ build_and_install() {
 		|| return $_FAILED
 
 	printf '%(%F %T)T Building "%s" - %s\n' -1 "$_PORT_DIR" "$_BUILD_LOG"
-	while ! lib_run_cmd $_BUILD_CMD $_BUILD_OPT >&3 2>&1; do
+	while ! "${_TIME[@]}" $_BUILD_CMD $_BUILD_OPT >&3 2>&1; do
 		ignore_build_error && {
 			lib_find_pkg "$_PORT_DIR"
 			touch "$pkg"

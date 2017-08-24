@@ -171,12 +171,12 @@ add_footprint_exception() {
 }
 
 handle_md5sum_mismatch() {
-	lib_is_shell_interactive \
-		|| return 1
 	is_build_error "Md5sum"  \
 		|| return 1
 
-	confirm "Ignore the md5 mismatch? " \
+	[[ $OPRT_INSTALL_IGNORING_CHECKSUMS != "" ]]   \
+		|| lib_is_shell_interactive            \
+		|| confirm "Ignore the md5 mismatch? " \
 		|| return 1
 
 	_BUILD_OPT+=" --ignore-md5sum"
@@ -184,12 +184,12 @@ handle_md5sum_mismatch() {
 }
 
 handle_signature_mismatch() {
-	lib_is_shell_interactive   \
-		|| return 1
 	is_build_error "Signature" \
 		|| return 1
 
-	confirm "Ignore the signature mismatch? " \
+	[[ $OPRT_INSTALL_IGNORING_CHECKSUMS != "" ]]         \
+		|| lib_is_shell_interactive                  \
+		|| confirm "Ignore the signature mismatch? " \
 		|| return 1
 
 	_BUILD_OPT+=" --ignore-signature"
@@ -197,12 +197,14 @@ handle_signature_mismatch() {
 }
 
 handle_override_errors() {
-	lib_is_shell_interactive \
-		|| return 1
-	is_override_error        \
+	is_override_error \
 		|| return 1
 
-	confirm "Force the instalation and override the files listed above? " \
+	local force="Force the instalation and override the files listed above?"
+
+	[[ $OPRT_INSTALL_WITH_FORCE != "" ]] \
+		|| lib_is_shell_interactive  \
+		|| confirm "$force "         \
 		|| return 1
 
 	_INSTALL_OPT+=" --force"

@@ -52,11 +52,8 @@ build_and_install_with_log() {
 	(( $_UPGRADED == 1 ))                 \
 		&& _INSTALL_OPT+=" --upgrade"
 
-	if [[ ${OPRT_INSTALL_WITH_FORCE+defined} ]]; then
-		_INSTALL_OPT+=" --force"
-	elif lib_find_up_to_date_pkg "$_PORT_DIR"; then
-		_TIMING=1
-	fi
+	lib_find_up_to_date_pkg "$_PORT_DIR" \
+		|| _TIMING=1
 
 	[[ ${OPRT_INSTALL_REBUILD+defined} ]] \
 		&& _BUILD_OPT+=" --force"
@@ -76,7 +73,7 @@ build_and_install_with_log() {
 
 build_and_install() {
 	local _FAILED=1
-	local _TIME=("/usr/bin/time" "-f" 'BUILD STATS: %E %P %M KB I/O/S:%I/%O/%W')
+	local _TIME=("/usr/bin/time" "-f" 'BUILD STATS: %E %P %M KB')
 
 	(( $_TIMING == 1 )) || _TIME=()
 

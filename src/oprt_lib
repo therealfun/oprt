@@ -76,7 +76,13 @@ lib_is_shell_interactive() {
 lib_set_PORT_DIR_and_COLLECTIONS() {
 	if [[ -e "$1/Pkgfile" ]]; then
 		_PORT_DIR=$(readlink -f "$1")
-		_COLLECTIONS=( "${_PORT_DIR%/*}" )
+
+		local  _COL=${_PORT_DIR%/*}
+		local _NAME=${_PORT_DIR##*/}
+
+		_COLLECTIONS=( $(${BASH_SOURCE%/*}/oprt-collections "$_NAME") )
+		[[ " ${_COLLECTIONS[@]} " =~ " $_COL " ]] \
+			|| _COLLECTIONS=( $_COL "${_COLLECTIONS[@]}" )
 	else
 		_COLLECTIONS=( $(${BASH_SOURCE%/*}/oprt-collections "$1") )
 		(( ${#_COLLECTIONS[@]} > 0 )) \

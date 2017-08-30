@@ -266,21 +266,17 @@ lib_find_up_to_date_pkg() {
 }
 
 lib_show_search_results() {
-	local _PORT _VERSION _C _COL
+	local _PORT _VERSION
 	local _LIB_DIR=${BASH_SOURCE%/*}
 
 	for _PORT in "${!_FOUND[@]}"; do
-		_COL=( $($_LIB_DIR/oprt-collections "$_PORT") )
-
 		lib_return_installed_version "$_PORT"
 		_VERSION=$return
 
 		lib_show_info 'Name'      "$_PORT"
 		lib_show_info 'Installed' "${_VERSION:-no}"
 
-		for _C in "${_COL[@]}"; do
-			OPRT_SEARCHING=1 $_LIB_DIR/oprt-info "$_C/$_PORT"
-		done
+		OPRT_SEARCHING=1 $_LIB_DIR/oprt-info "$_PORT"
 
 		echo ""
 	done

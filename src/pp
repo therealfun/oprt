@@ -135,7 +135,7 @@ pick_from_many_collections() {
 	elif accept_default "Your choice? (default is 0) "; then
 		c="${o[0]}"
 	else
-		[[ $REPLY > 0 && $REPLY < ${#o[@]} ]] || {
+		(( $REPLY >= 0 && $REPLY < ${#o[@]} )) || {
 			echo "ERROR: invalid choice"
 			exit 1
 		}	

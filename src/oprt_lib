@@ -67,8 +67,8 @@ lib_add_to_log() {
 lib_is_shell_interactive() {
 	# local login
 	[[ -t 0          ]] && return 0
-	# ssh login
-	[[ -p /dev/stdin ]] && return 0
+	# ssh ... cmd
+	# [[ -p /dev/stdin ]] && return 0
 
 	return 1
 }

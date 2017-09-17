@@ -21,20 +21,20 @@ main() {
 	update_selected_ports
 	rebuild_broken_ports
 
-	lib_is_shell_interactive && {
-		printf 'Last log entries: %s\n' "$OPRT_DIR/log"
-		tail "$OPRT_DIR/log" | tac
+	printf 'Last log entries: %s\n' "$OPRT_DIR/log"
+	tail "$OPRT_DIR/log" | tac
 
-		[[ ${OPRT_DONT_ASK_SCRIPT+defined} ]] || {
-			ask_later_script_questions
-		}
-		[[ ${OPRT_DONT_LOG+defined} ]] || {
-			ask_about_failed_build_logs
-			ask_about_successful_build_logs
-		}
-
-		lib_run_rejmerge
+	[[ ${OPRT_DONT_ASK_SCRIPT+defined} ]] || {
+		ask_later_script_questions
 	}
+
+	[[ ${OPRT_DONT_LOG+defined} ]] || {
+		ask_about_failed_build_logs
+		ask_about_successful_build_logs
+	}
+
+	is_shell_interactive \
+		&& lib_run_rejmerge
 
 	(( ${#_FAILED[@]} == 0 )) || {
 		lib_warningf 'Failed: %s' "${_FAILED[@]}"
@@ -187,6 +187,16 @@ remember_this_build() {
 
 	lib_find_pkg "$_PORT_DIR" \
 		&& stat --format='%Y' "$pkg" > "$_MEMO"
+}
+
+is_shell_interactive() {
+	# local login
+	[[ -t 0          ]] && return 0
+
+	# ssh ... cmd
+	# [[ -p /dev/stdin ]] && return 0
+
+	return 1
 }
 
 ask_later_script_questions() {

@@ -64,15 +64,6 @@ lib_add_to_log() {
 		|| printf '%(%F %T)T %s\n' -1 "$*" >> "$OPRT_DIR/log"
 }
 
-lib_is_shell_interactive() {
-	# local login
-	[[ -t 0          ]] && return 0
-	# ssh ... cmd
-	# [[ -p /dev/stdin ]] && return 0
-
-	return 1
-}
-
 lib_set_PORT_DIR_and_COLLECTIONS() {
 	if [[ -e "$1/Pkgfile" ]]; then
 		_PORT_DIR=$(readlink -f "$1")
@@ -148,7 +139,7 @@ lib_return_ask_script_question() {
 	do
 		case $return in
 			run|ignore)               break ;;
-			*later)     return=later; break ;;
+			*)          return=later; break ;;
 		esac
 	done
 }
@@ -164,13 +155,8 @@ lib_ask_about_install_scripts() {
 		lib_return_prev_script_answer "$port" $script
 		[[ $return == unknown ]] || continue
 
-		if lib_is_shell_interactive; then
-			lib_return_ask_script_question "$port_dir" $script
-		else
-			return=later
-		fi
-
-		lib_save_script_question $return "$port_dir" $script
+		lib_return_ask_script_question         "$port_dir" $script
+		lib_save_script_question       $return "$port_dir" $script
 	done
 }
 
@@ -197,24 +183,17 @@ lib_ack_to_run_port_script() {
 		run)
 			diff -u "$OPRT_DIR/$port.$script.run" "$port_dir/$script" \
 				&& return $yes
-			lib_is_shell_interactive \
-				|| return $no
-			lib_confirm "Script '$port_dir/$script' changed. Continue?" || {
-				rm "$OPRT_DIR/$port.$script.run"
-				return $no
+			lib_confirm "Script '$port_dir/$script' changed. Continue?" && {
+				cat "$port_dir/$script" > "$OPRT_DIR/$port.$script.run"
+				return $yes
 			}
-			cat "$port_dir/$script" > "$OPRT_DIR/$port.$script.run"
-			return $yes
+			rm "$OPRT_DIR/$port.$script.run"
+			return $no
 			;;
 		ignore)
 			return $no
 			;;
 	esac
-
-	lib_is_shell_interactive || {
-		lib_save_script_question later "$port_dir" "$script"
-		return $no
-	}
 
 	lib_return_ask_script_question          "$port_dir" "$script"
 	lib_save_script_question        $return "$port_dir" "$script"

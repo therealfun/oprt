@@ -197,18 +197,17 @@ handle_footprint_mismatch() {
 	have_footprint_exception \
 		&& return 0
 
-	lib_is_shell_interactive \
-		|| return 1
-
 	PS3="Ignore the footprint error for '$_PORT_DIR' ? "
 	select return in "ignore just now" "ignore forever" "abort"
 	do
 		case $return in
-			*now)     break ;;
-			*forever) add_footprint_exception; break ;;
+			*now)     return 0 ;;
+			*forever) add_footprint_exception; return 0 ;;
 			abort)    return 1 ;;
 		esac
 	done
+
+	return 1 # non-interactive
 }
 
 have_footprint_exception() {
@@ -232,7 +231,6 @@ handle_md5sum_mismatch() {
 		|| return 1
 
 	[[ $OPRT_INSTALL_IGNORING_CHECKSUMS != "" ]]   \
-		|| lib_is_shell_interactive            \
 		|| confirm "Ignore the md5 mismatch? " \
 		|| return 1
 
@@ -245,7 +243,6 @@ handle_signature_mismatch() {
 		|| return 1
 
 	[[ $OPRT_INSTALL_IGNORING_CHECKSUMS != "" ]]         \
-		|| lib_is_shell_interactive                  \
 		|| confirm "Ignore the signature mismatch? " \
 		|| return 1
 
@@ -260,7 +257,6 @@ handle_override_errors() {
 	local force="Force the instalation and override the files listed above?"
 
 	[[ $OPRT_INSTALL_WITH_FORCE != "" ]] \
-		|| lib_is_shell_interactive  \
 		|| confirm "$force "         \
 		|| return 1
 

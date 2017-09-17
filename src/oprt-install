@@ -194,21 +194,21 @@ handle_footprint_mismatch() {
 	[[ ${OPRT_INSTALL_IGNORING_FOOTPRINT+defined} ]] \
 		&& return 0
 
-	have_footprint_exception || {
-		lib_is_shell_interactive || return 1
+	have_footprint_exception \
+		&& return 0
 
-		PS3="Ignore the footprint error for '$_PORT_DIR' ? "
-		select return in "ignore just now" "ignore forever" "abort"
-		do
-			case $return in
-				*now)     break ;;
-				*forever) add_footprint_exception; break ;;
-				abort)    return 1 ;;
-			esac
-		done
-	}
+	lib_is_shell_interactive \
+		|| return 1
 
-	return 0
+	PS3="Ignore the footprint error for '$_PORT_DIR' ? "
+	select return in "ignore just now" "ignore forever" "abort"
+	do
+		case $return in
+			*now)     break ;;
+			*forever) add_footprint_exception; break ;;
+			abort)    return 1 ;;
+		esac
+	done
 }
 
 have_footprint_exception() {

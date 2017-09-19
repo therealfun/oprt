@@ -55,8 +55,7 @@ remove_files_verbose() {
 
 # To get proper names for sources, we include pkgmk (without running it)
 # and then we include /etc/pkgmk.conf (for PKGMK_SOURCE_DIR)
-# The function body is inside (), running as a sub-shell.
-show_installed_sources() (
+show_installed_sources() {
 	local _SRC_DIR=$1
 	. <( sed 's/^main "$@"$//' < /usr/bin/pkgmk )
 	. /etc/pkgmk.conf
@@ -79,7 +78,7 @@ show_installed_sources() (
 			done
 		)
 	done < <(pkginfo --installed) | sed -e "s@$PKGMK_SOURCE_DIR@$_SRC_DIR@g"
-)
+}
 
 show_all_sources() {
 	local _SRC_DIR=$1

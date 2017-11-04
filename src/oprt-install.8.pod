@@ -78,6 +78,10 @@ If set, it will ignore footprint errors. Usefull when testing ports.
 
 Don't run pre/post install scripts.
 
+=item B<OPRT_DO_RUN_SCRIPTS> (default: unset)
+
+Run pre/post install scripts without asking (this time).
+
 =back
 
 =head1 SEE ALSO

@@ -176,8 +176,6 @@ lib_ack_to_run_port_script() {
 	local  yes=0
 	local   no=1
 
-	[[ -f "$port_dir/$script" ]] || return $no
-
 	lib_return_prev_script_answer "$port" "$script"
 	case $return in
 		run)
@@ -217,6 +215,7 @@ lib_run_port_script() {
 	local script=$2
 
 	[[ ${OPRT_DONT_RUN_SCRIPTS+defined} ]] && return 0
+	[[ -f "$port_dir/$script"           ]] || return 0
 
 	[[ ${OPRT_DO_RUN_SCRIPTS+defined} ]]       \
 		|| lib_ack_to_run_port_script "$@" \

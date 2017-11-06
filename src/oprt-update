@@ -7,6 +7,8 @@ declare -A args
 declare -A exclude
 to_update=()
 
+# First we should remove the ports without repos
+# because ports might be merged.
 main() {
 	parse_args "$@"
 

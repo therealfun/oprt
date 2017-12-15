@@ -42,7 +42,7 @@ check() {
 		_NAME=${_NAME//[^a-z_]/}
 		local _PORT_VERSION=${!_NAME}
 		[[ $_PORT_VERSION == $_UPVER ]] \
-			|| lib_warningf '%s: %s -> %s' "$_PORT_DIR" "$_PORT_VERSION" "$_UPVER"
+			|| lib_warningf '%s: %s %s -> %s' "$_PORT_DIR" "$_NAME" "$_PORT_VERSION" "$_UPVER"
 	done < <(sh "$_WATCH")
 
 	return 0
